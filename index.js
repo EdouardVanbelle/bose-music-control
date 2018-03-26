@@ -6,281 +6,327 @@ const cookie = require('cookie');
 const nonce = require('nonce')();
 const querystring = require('querystring');
 const request = require('request');
+const WebSocketClient = require('websocket').client;
 
 const test_env = process.env.TEST;
 
-const xml2js = require('xml2js');
+const xml2js = require('xml2js'); //FIXME: what about UTF8 ?
 const xmlParser = xml2js.Parser();
+
 const xmlBuilder = require('xmlbuilder');
 
 const net = require('net');
 
 const bonjour = require('bonjour')()
 
-var services = {};;
+// ------------------------------------------------------------------------------------------
 
-var short_name_map = {
-	cuisine: "Bose-Cuisine",
-	salon:   "Bose-Salon-Rdc",
-	enfants: "Bose-Salon-Haut",
-	bureau:  "Bose-Bureau"
-};
+function BoseSoundTouch( name, ip, mac, model, port) {
+	this.name   = name;
+	this.ip     = ip;
+	this.mac    = mac;
+	this.model  = model;
+	this.port   = port;
+	this.info   = null;
+	this.powerOn= null;
+	this.playStatus = null;
+	this.source = null;
+	this.playing = {};
 
-var bose_salon_rdc = null;
-var last_bose_status = null;
-var scheduler = null;
+	this.eventHandler = {};
+	this.soundTouchVersion = null;
+	this.ws = null;
+}
 
+BoseSoundTouch.prototype.toString = function() {
+  	return this.name+" ("+this.mac+")";
+}
 
+BoseSoundTouch.prototype.parseConnectionState = function( message) {
+	var current = this;
 
-app.get('/', (req, res) => {
-  res.send('Hello World!');
-});
+	//simplify
+	message = message.$;
 
-app.get("/api/service", (req, res) => {
-  res.json( services);
-});
+	//store it
+	this.connection = message;
+}
 
-app.get("/api/key/:key", (req, res) => {
-  bose_key( bose_salon_rdc, req.params.key, function( success) {
-    res.json( success);
-  } );
-});
+BoseSoundTouch.prototype.parseNowPlaying = function( message) {
+	var current = this;
 
-app.get("/api/group/:name", (req, res) => {
-  if (!( req.params.name in short_name_map)) {
-    res.status(400).json( { message: "not found" })
-    return
-  }
-  bose_setZone( bose_salon_rdc, [ services[ short_name_map[ req.params.name ]] ], function( success) {
-    res.json( success);
-  });
-});
+	//simplify
+	message = message.nowPlaying;
+	if( Array.isArray( message)) { 
+		message = message.shift();
+	}
 
-app.get("/api/ungroup/:name", (req, res) => {
-  if (!( req.params.name in short_name_map)) {
-    res.status(400).json( { message: "not found" })
-    return
-  }
-  bose_removeZoneSlave(  bose_salon_rdc, [ services[ short_name_map[ req.params.name ]] ], function( success) {
-    res.json( success);
-  });
-});
+	//console.log( message);
 
+	playStatus = "ERROR";
+	source     = "INVALID_SOURCE";
 
-/*
-// browse for all http services
-bonjour.find({ type: 'spotify-connect' }, function (service) {
-  console.log('-- Found a spotify-connect device: ')
-  console.log( service)
-})
-*/
+	try { source = message.$.source;          } catch( e) {}
+	try { playStatus = message.playStatus[0]; } catch( e) {}
 
+	var powerOn    = ((source != "STANDBY") && (source != "INVALID_SOURCE"));
 
-function denon_command( command, handler)
-{
-   var denon = new net.Socket();
-   var answers = [];
-   denon.setTimeout(600);
-   denon.on('error', (err) => {
-     if( typeof( handler) === 'function')
-     {
-        handler(null, err);
-     }
-   });
-   denon.on('timeout', () => {
-     console.log( "DEBUG "+answers.toString());
-     //denon.write(command+"\r"); // can keep connection
-     denon.end();
+        //  powerOn = ( playStatus == "PLAY_STATE" || playStatus == "BUFFERING_STATE" || playStatus == "PAUSE_STATE" || playStatus == "INVALID_PLAY_STATUS")
 
-     if( typeof( handler) === 'function')
-     {
-       setTimeout( function() { handler( answers); }, 200 );
-     }
-   });
-   denon.connect( 23, 'denon.lan', function() {
-     denon.write(command+"\r");
-   });
-   denon.on('data', function(data) {
-     //data = data.toString().replace( /\r/g, "\n");
-     answers.push( data.toString().slice(0, -1) );
-     //denon.end(); // kill client after server's response
-   });
+	current.playStatus  = playStatus;
+	try{
+		current.playing = {
+			track          : message.track[0],
+			artist         : message.artist[0],
+			album          : message.album[0],
+			art            : message.art[0]._,
+			station        : message.stationName[0],
+			//shuffleSetting : message.shuffleSetting[0],
+			//repeatSetting  : message.repeatSetting[0],
+			//trackID        : message.trackID[0]
+			//time           : message.time[0]._,
+			//totalTime      : message.time[0].$.total
+		};
+        }
+	catch( e) {
+		current.playing = { };
+	}
+
+	console.log( current+" source: "+source+", playing: "+playStatus)
+	console.log( current.playing);
+
+	current.source = source;
+
+	//fire event
+	if ( current.powerOn !== powerOn) {
+		current.powerOn = powerOn;
+		if ( typeof( current.eventHandler['powerChange'] ) == "function" ) {
+			current.eventHandler['powerChange']( current);
+		}
+	}
+
+	 /*
+	<?xml version="1.0" encoding="UTF-8" ?>
+	<nowPlaying deviceID="04A316E14903" source="SPOTIFY" sourceAccount="doudou.djez">
+	  <ContentItem source="SPOTIFY" type="uri" location="spotify:user:doudou.djez:collection" sourceAccount="doudou.djez" isPresetable="true">
+	    <itemName>My songs</itemName>
+	  </ContentItem>
+	  <track>Paper Scissors Stone</track>
+	  <artist>Portico Quartet</artist>
+	  <album>Isla</album>
+	  <stationName></stationName>
+	  <art artImageStatus="IMAGE_PRESENT">http://i.scdn.co/image/2de187645f5fce8b32d8c4aa4579bfd9b8444aa5</art>
+	  <time total="327">310</time><skipEnabled /><favoriteEnabled />
+	  <playStatus>PAUSE_STATE</playStatus>
+	  <shuffleSetting>SHUFFLE_ON</shuffleSetting>
+	  <repeatSetting>REPEAT_OFF</repeatSetting>
+	  <skipPreviousEnabled />
+	  <streamType>TRACK_ONDEMAND</streamType>
+	  <isFavorite />
+	  <trackID>spotify:track:3yH9TwcXxCPlaxCfX5d7MD</trackID>
+	</nowPlaying>
+	
+	...
+
+        <nowPlaying deviceID="04A316E14903" source="INTERNET_RADIO">
+	<ContentItem source="INTERNET_RADIO" location="4712" sourceAccount="" isPresetable="true"><itemName>VRT Studio Brussel</itemName><containerArt>http://item.radio456.com/007452/logo/logo-4712.jpg</containerArt></ContentItem>
+	<track></track>
+	<artist></artist>
+	<album></album>
+	<stationName>VRT Studio Brussel</stationName>
+	<art artImageStatus="IMAGE_PRESENT">http://item.radio456.com/007452/logo/logo-4712.jpg</art>
+	<playStatus>PLAY_STATE</playStatus>
+	<description>MP3  128 kbps  Brussels Belgium,  Studio BruBel geeft je overdag de beste pop-, rock- en dansmuziek en &apos;s avonds een eigenzinnige selectie van genres en stijlen. Life is Music</description>
+	<stationLocation>Brussels Belgium</stationLocation>
+
+	...
+
+        <nowPlaying deviceID="A0F6FD51A816" source="BLUETOOTH" sourceAccount="">
+	<ContentItem source="BLUETOOTH" location="" sourceAccount="" isPresetable="false">
+	  <itemName>Edouard</itemName>
+	</ContentItem>
+	<track>Operaz</track>
+	<artist>Chinese Man</artist>
+	<album>Operaz</album>
+	<stationName>Edouard</stationName>
+	<art artImageStatus="SHOW_DEFAULT_IMAGE" />
+	<skipEnabled />
+	<playStatus>PLAY_STATE</playStatus>
+	<skipPreviousEnabled />
+	<genre></genre>
+	<connectionStatusInfo status="CONNECTED" deviceName="Edouard" />
+	</nowPlaying>
+	*/
 
 }
 
-function checkIfPlaying()
-{
-     if ( bose_salon_rdc === null) return;
 
-     isPlaying( bose_salon_rdc, function( answer) {
+BoseSoundTouch.prototype.listen = function() {
 
-        if (answer === last_bose_status)
-        {
-	  console.log( "bose is unchanged");
-	  return;
-	}
+    var client = new WebSocketClient();
+    //this.ws = client;
+    var name = this.name;
+    var ip = this.ip;
+    var current = this;
 
-        console.log( bose_salon_rdc.name+" playing: "+ answer);
+    client.on('connect', function(connection) {
+	//console.log( name + " websocket connected");
 
-	if( answer)
-        {
-	  denon_command("Z2?", function( answers, err) {
-            if (err) { return console.log( err) }
-            if( answers.indexOf( "Z2OFF") != -1) {
-		console.log("Switching on Denon")
-		denon_command( "Z2ON");
-		denon_command( "Z2AUX1");
-		//denon_command( "Z250"); //set volume
-		last_bose_status = answer;
-	    }
-            else if( answers.indexOf( "Z2ON") != -1) {
-		console.log("Denon is on")
-		last_bose_status = answer;
-            }
-	  } );
-	}
-	else
-	{
-	  denon_command("Z2?", function( answers, err) {
-            if (err) { return console.log( err) }
-            if( answers.indexOf( "Z2ON") != -1 && answers.indexOf( "Z2AUX1") != -1) {
-		console.log("Denon is on AUX1, switching it off")
-		denon_command( "Z2OFF");
-		last_bose_status = answer;
-	    }
-          })
-	}
+        connection.on('error', function(error) {
+            console.log( name + error.toString());
+        });
+        connection.on('close', function() {
+            console.log( name + " websocket lost");
+        });
+        connection.on('message', function(message) {
 
-     } )
-}
+	 if (message.type === 'utf8') {
+	 	xmlParser.parseString( message.utf8Data, function( err, data) {
+			if ( err) return;
+			if ('SoundTouchSdkInfo' in data) {
+				//Greetings, store sound touch SDK version
+				current.soundTouchVersion = data.SoundTouchSdkInfo.$.serverVersion;
+				if( current.soundTouchVersion != "4")
+				{
+					console.log("Warning: unknown SDK version "+current.soundTouchVersion);
+				}
+				return; // ignore
+			}
+			else if ('userActivityUpdate' in data) {
+				// ignore (message from interface)
+				// <userActivityUpdate deviceID="04A316E14903" />
+				console.log( current +" received userActivityUpdate notification" );
+			}
+			else if ('updates' in data) {
 
-// browse for all http services
-var soundtouch = bonjour.find({ type: 'soundtouch' });
+				for ( var key in data.updates) {
+					if( key === "$") continue;
+					var finalMessage = data.updates[ key][0];
 
-soundtouch.on("up", function (service) {
+					console.log( current +" received "+key+" notification" );
 
-  console.log('DEBUG Found a Bose SoundTouch device: '+service.name+', IP: '+service.addresses[0]+', port: '+service.port+', mac: '+service.txt.mac) 
+					//should scheddule an event
+					if( key === 'nowPlayingUpdated') {
+						current.parseNowPlaying( finalMessage);
+					}
+					else if( key === 'connectionStateUpdated') {
+						current.parseConnectionState( finalMessage);
+					}
+					else if( key === 'nowSelectionUpdated') {
+						// ignored
+						// <updates deviceID="04A316E14903"><nowSelectionUpdated><preset id="1"><ContentItem source="INTERNET_RADIO" location="4712" sourceAccount="" isPresetable="true"><itemName>Studio Brussel</itemName><containerArt /></ContentItem></preset></nowSelectionUpdated></updates>
+					}
+					else if( key === 'recentsUpdated') {
+						// ignored
+						// updates deviceID="04A316E14903"><recentsUpdated><recents><recent deviceID="04A316E14903" utcTime="1522107433" id="2221758507"><contentItem source="SPOTIFY" type="uri" location="spotify:station:user:doudou.djez:cluster:3Cn3adRB3NJUpIpkucwi7G" sourceAccount="doudou.djez" isPresetable="true"><itemName>Daily Mix 5</itemName></contentItem></recent><recent deviceID="04A316E14903" utcTime="1522107340" id="2174867728"><contentItem source="INTERNET_RADIO" location="4712" sourceAccount="" isPresetable="true"><itemName>Studio Brussel</itemName></contentItem></recent><recent deviceID="04A316E14903" utcTime="1521893943" id="2221589651"><contentItem source="SPOTIFY" type="uri" location="spotify:user:spotify:playlist:37i9dQZF1DWZn9s1LNKPiM" sourceAccount="7olx20j62dl29n5u11j3dzpgq" isPresetable="true"><itemName>90s Rock Renaissance</itemName></contentItem></recent><recent deviceID="04A316E14903" utcTime="1521887700" id="2221578653"><contentItem source="SPOTIFY" type="uri" location="spotify:user:spotify:playlist:37i9dQZF1DXb9LIXaj5WhL" sourceAccount="7olx20j62dl29n5u11j3dzpgq" isPresetable="true"><itemName>Bring Back the 90s</itemName></contentItem></recent><recent deviceID="04A316E14903" utcTime="1521885332" id="2215236660"><contentItem source="SPOTIFY" type="uri" location="spotify:station:user:doudou.djez:cluster:7w4s5bpD2IzVoe4tE9lFh3" sourceAccount="doudou.djez" isPresetable="true"> ....
+					}
+					else if( key === 'zoneUpdated') {
 
-  bose_info( service);
-  bose_getZone( service);
+						// TODO
+						
+						/*
+						ADD:
 
-  // {"Bose-Salon-Rdc":{"addresses":["192.168.2.246"],"txt":{"description":"SoundTouch","mac":"04A316E14903","manufacturer":"Bose Corporation","model":"SoundTouch"},"name":"Bose-Salon-Rdc","fqdn":"Bose-Salon-Rdc._soundtouch._tcp.local","host":"binky-1436213703.local","referer":{"address":"192.168.2.246","family":"IPv4","port":5353,"size":215},"port":8090,"type":"soundtouch","protocol":"tcp","subtypes":[]}
-  services[service.name] = {
-	  name: service.name,
-	  ip:  service.addresses[0],
-	  mac: service.txt.mac,
-	  model: service.txt.model,
-	  port: service.port
-  };
+						 Bose-Salon-Rdc (04A316E14903) received zoneUpdated notification
+						 event not yet treated
+						 <updates deviceID="04A316E14903"><zoneUpdated><zone master="04A316E14903"><member ipaddress="192.168.2.188">A0F6FD3D536C</member></zone></zoneUpdated></updates>
+						 { zone: [ { '$': [Object], member: [Array] } ] }
+						 Bose-Cuisine (A0F6FD3D536C) received zoneUpdated notification
+						 event not yet treated
+						 <updates deviceID="A0F6FD3D536C"><zoneUpdated><zone master="04A316E14903" senderIPAddress="192.168.2.246" senderIsMaster="true"><member ipaddress="192.168.2.188">A0F6FD3D536C</member></zone></zoneUpdated></updates>
+						 { zone: [ { '$': [Object], member: [Array] } ] }
 
-  if ( service.name === "Bose-Salon-Rdc")
-  {
-     console.log( "Bose-Salon-Rdc found !");
-     bose_salon_rdc = service;
-     checkIfPlaying();
-     scheduler = setInterval( checkIfPlaying, 10000);
-  }
-})
+						 REM:
 
-soundtouch.on("down", function (service) {
+						 <updates deviceID="04A316E14903"><zoneUpdated><zone /></zoneUpdated></updates>
+						 { zone: [ '' ] }
+						 Bose-Cuisine (A0F6FD3D536C) received nowPlayingUpdated notification
+						 Bose-Cuisine (A0F6FD3D536C) source: STANDBY, playing: ERROR
+						 {}
+						 Bose-Cuisine (A0F6FD3D536C) received zoneUpdated notification
+						 event not yet treated
+						 <updates deviceID="A0F6FD3D536C"><zoneUpdated><zone /></zoneUpdated></updates>
+						 { zone: [ '' ] }
+						 Bose-Cuisine (A0F6FD3D536C) received nowPlayingUpdated notification
+						 Bose-Cuisine (A0F6FD3D536C) source: STANDBY, playing: ERROR
+						 {}
 
-  console.log('DEBUG Bose SoundTouch device left: '+service.name+', IP: '+service.addresses[0]+', port: '+service.port+', mac: '+service.txt.mac) 
+						 */
+					}
+					else {
+						console.log("event not yet treated");
+	 					console.log( message.utf8Data);
+						console.log( finalMessage);
+					}
+				}
+			}
+			else {
+				console.log( name+" Unknown event: ");
+				console.log( message.utf8Data);
+			}
 
-  if ( service.name === "Bose-Salon-Rdc")
-  {
-     clearInterval( scheduler);
-     bose_salon_rdc = null;
-  }
-})
+		})
+	 }
+	 else
+	 {
+		 console.log(name+" unrecognized message");
+	 }
 
-function bose_info(  service, answerFunction) {
-  var baseURL = "http://" + service.addresses[0] + ":" + service.port;
-  request( { url : baseURL+"/info" }, function(err, res, body) {
-    if (err) { return console.log( err); }
-    xmlParser.parseString(body, function (err, result) {
-      if (err) { return console.log( err); }
-      services[ service.name].type = result.info.type[0];
+        });
     });
-  });
-}
 
-function bose_getZone(  service, answerFunction) {
-  var baseURL = "http://" + service.addresses[0] + ":" + service.port;
-  request( { url : baseURL+"/getZone" }, function(err, res, body) {
-    if (err) { return console.log( err); }
-    xmlParser.parseString(body, function (err, result) {
-      if (err) { return console.log( err); }
-	    //console.log( body);
-	    //TODO
+    client.on('connectFailed', function(error) {
+	    console.log( name + " "+error);
     });
-  });
+
+    client.connect("ws://" + ip + ":" + '8080', 'gabbo');
+
+    return client;
 }
 
-function bose_setZone(  service, slaves, answerFunction) {
+BoseSoundTouch.prototype.end = function() {
+	if( this.ws === null) return;
+	this.ws.close();
+	this.ws = null;
+}
 
-  var baseURL = "http://" + service.addresses[0] + ":" + service.port;
-  var xml = xmlBuilder.create('zone', {version: '1.0', encoding: 'UTF-8'})
-		   .att( 'master', services[service.name].mac)
 
-  slaves.forEach( function( slave) {
-  	console.log( "group zone to "+slave.name)
-	xml = xml.ele('member', {"ipaddress": slave.ip }, slave.mac)
-  });
 
+BoseSoundTouch.prototype._get = function( command, handler) {
+  var bose_url = "http://" + this.ip + ":" + this.port + '/' + command;
+  request ( { url : bose_url }, handler);
+}
+
+BoseSoundTouch.prototype._post = function( command, xml, handler) {
+  var bose_url = "http://" + this.ip + ":" + this.port + '/' + command;
+ 
   var options = { 
-	  'url' :         baseURL+"/setZone",
+	  'url' :         bose_url,
 	  'content-type': 'application/xml', 
 	  'body':         xml.end({ pretty: true})
-	  		 
   };
-  request.post( options, function(err, res, body) {
-    if (err) { console.log( err); }
-    answerFunction( res.statusCode == 200);
-  });
+  request.post( options, handler);
 }
 
-function bose_removeZoneSlave(  service, slaves, answerFunction) {
-  var baseURL = "http://" + service.addresses[0] + ":" + service.port;
-  var xml = xmlBuilder.create('zone', {version: '1.0', encoding: 'UTF-8'})
-		   .att( 'master', services[service.name].mac)
+BoseSoundTouch.prototype.sync = function() {
 
-  slaves.forEach( function( slave) {
-  	console.log( "ungroup zone to "+slave.name)
-	xml = xml.ele('member', {"ipaddress": slave.ip }, slave.mac)
-  });
+  var current = this;
 
-  var options = { 
-	  'url' :         baseURL+"/removeZoneSlave", 
-	  'content-type': 'application/xml', 
-	  'body':         xml.end({ pretty: true})
-  };
-  request.post( options, function(err, res, body) {
+  this._get( 'now_playing', function(err, res, body) {
     if (err) { return console.log( err); }
-    answerFunction( res.statusCode == 200);
-  });
+
+    xmlParser.parseString(body, function (err, result) {
+
+        if (err) { return console.log( err); }
+
+	current.parseNowPlaying( result);
+
+    })
+
+  })
 }
 
-function bose_key(  service, key, answerFunction) {
-  var baseURL = "http://" + service.addresses[0] + ":" + service.port;
-
-  var xml = xmlBuilder.create('key', {version: '1.0', encoding: 'UTF-8'})
-                   .att("state", "press")
-                   .att("sender", "Gabbo")
-		   .txt(key)
-  		   .end({ pretty: true});
-
-  var options = { 
-	  'url' :         baseURL+"/key", 
-	  'content-type': 'application/xml', 
-	  'body':         xml
-  };
-  request.post( options, function(err, res, body) {
-    if (err) { console.log( err); }
-    answerFunction( res.statusCode == 200);
-  });
-}
-
-
+BoseSoundTouch.prototype.getInfo = function( handler) {
 
   /*
 
@@ -323,95 +369,258 @@ function bose_key(  service, key, answerFunction) {
    */
 
 
-
-function isPlaying(  service, answerFunction) {
-  var baseURL = "http://" + service.addresses[0] + ":" + service.port;
-  var getURL = baseURL + "/now_playing";
-
-  request( { url : getURL }, function(err, res, body) {
+  var current = this;
+  this._get( 'info', function(err, res, body) {
     if (err) { return console.log( err); }
-
     xmlParser.parseString(body, function (err, result) {
+      if (err) { return console.log( err); }
+      current.type = result.info.type[0];
+    });
+  });
+}
 
-        if (err) { return console.log( err); }
+BoseSoundTouch.prototype.getZone = function( handler) {
+  var current = this;
+  this._get( 'getZone', function(err, res, body) {
+    if (err) { return console.log( err); }
+    xmlParser.parseString(body, function (err, result) {
+      if (err) { return console.log( err); }
+	    //console.log( body);
+	    //TODO
+    });
+  });
+}
 
-	 /*
-	console.log( body);
-	<?xml version="1.0" encoding="UTF-8" ?>
-	<nowPlaying deviceID="04A316E14903" source="SPOTIFY" sourceAccount="doudou.djez">
-	  <ContentItem source="SPOTIFY" type="uri" location="spotify:user:doudou.djez:collection" sourceAccount="doudou.djez" isPresetable="true">
-	    <itemName>My songs</itemName>
-	  </ContentItem>
-	  <track>Paper Scissors Stone</track>
-	  <artist>Portico Quartet</artist>
-	  <album>Isla</album>
-	  <stationName></stationName>
-	  <art artImageStatus="IMAGE_PRESENT">http://i.scdn.co/image/2de187645f5fce8b32d8c4aa4579bfd9b8444aa5</art>
-	  <time total="327">310</time><skipEnabled /><favoriteEnabled />
-	  <playStatus>PAUSE_STATE</playStatus>
-	  <shuffleSetting>SHUFFLE_ON</shuffleSetting>
-	  <repeatSetting>REPEAT_OFF</repeatSetting>
-	  <skipPreviousEnabled />
-	  <streamType>TRACK_ONDEMAND</streamType>
-	  <isFavorite />
-	  <trackID>spotify:track:3yH9TwcXxCPlaxCfX5d7MD</trackID>
-	</nowPlaying>
-	
-	...
+BoseSoundTouch.prototype.setZone = function( slaves, handler) {
 
-        <nowPlaying deviceID="04A316E14903" source="INTERNET_RADIO">
-	<ContentItem source="INTERNET_RADIO" location="4712" sourceAccount="" isPresetable="true"><itemName>VRT Studio Brussel</itemName><containerArt>http://item.radio456.com/007452/logo/logo-4712.jpg</containerArt></ContentItem>
-	<track></track>
-	<artist></artist>
-	<album></album>
-	<stationName>VRT Studio Brussel</stationName>
-	<art artImageStatus="IMAGE_PRESENT">http://item.radio456.com/007452/logo/logo-4712.jpg</art>
-	<playStatus>PLAY_STATE</playStatus>
-	<description>MP3  128 kbps  Brussels Belgium,  Studio BruBel geeft je overdag de beste pop-, rock- en dansmuziek en &apos;s avonds een eigenzinnige selectie van genres en stijlen. Life is Music</description>
-	<stationLocation>Brussels Belgium</stationLocation>
+  var xml = xmlBuilder.create('zone', {version: '1.0', encoding: 'UTF-8'})
+		   .att( 'master', this.mac)
 
-        */
-	
+  slaves.forEach( function( slave) {
+  	console.log( "group zone to "+slave.name)
+	xml = xml.ele('member', {"ipaddress": slave.ip }, slave.mac)
+  });
 
-	answer     = false;
-	playStatus = "ERROR";
-	source     = "INVALID_SOURCE";
+  this._post( 'setZone', xml, function(err, res, body) {
+    if (err) { console.log( err); }
+    handler( res.statusCode == 200);
+  });
+}
 
-	try { source = result.nowPlaying.$.source;       } catch( e) {}
-	try { playStatus = result.nowPlaying.playStatus; } catch( e) {}
+BoseSoundTouch.prototype.removeZoneSlave = function( slaves, handler) {
+  var xml = xmlBuilder.create('zone', {version: '1.0', encoding: 'UTF-8'})
+		   .att( 'master', this.mac)
 
-        if( source != "STANDBY" && source != "INVALID_SOURCE" )
-        {
-          answer = ( playStatus == "PLAY_STATE" || playStatus == "BUFFERING_STATE" || playStatus == "PAUSE_STATE" || playStatus == "INVALID_PLAY_STATUS")
-	}
+  slaves.forEach( function( slave) {
+  	console.log( "ungroup zone to "+slave.name)
+	xml = xml.ele('member', {"ipaddress": slave.ip }, slave.mac)
+  });
 
-	services[ service.name].on      = answer;
-	try{
-		services[ service.name].track   = result.nowPlaying.track[0];
-		services[ service.name].artist  = result.nowPlaying.artist[0];
-		services[ service.name].album   = result.nowPlaying.album[0];
-		services[ service.name].art     = result.nowPlaying.art[0]._;
-		services[ service.name].station = result.nowPlaying.stationName[0];
-        }
-	catch( e) {
-		services[ service.name].track   = null;
-		services[ service.name].artist  = null;
-		services[ service.name].album   = null;
-		services[ service.name].art     = null;
-		services[ service.name].station = null;
-	}
-	console.log( "DEBUG source: "+source+", playing: "+playStatus)
-        answerFunction( answer);
-    })
+  this._post('removeZoneSlave', xml, function(err, res, body) {
+    if (err) { return console.log( err); }
+    handler( res.statusCode == 200);
+  });
+}
+
+BoseSoundTouch.prototype.key = function( key, handler) {
+  var xml = xmlBuilder.create('key', {version: '1.0', encoding: 'UTF-8'})
+                   .att("state", "press")
+                   .att("sender", "Gabbo")
+		   .txt(key)
+
+  this._post( 'key', xml, function(err, res, body) {
+    if (err) { console.log( err); }
+    handler( res.statusCode == 200);
+  });
+}
+
+BoseSoundTouch.prototype.on = function( eventName, handler) {
+	this.eventHandler[ eventName ] = handler;
+}
+
+
+// ------------------------------------------------------------------------------------------
+
+function Denon( ip) {
+	this.ip = ip;
+}
+
+Denon.prototype.call = function( commands, handler) {
+
+   var answers = [];
+   var socket = new net.Socket();
+   socket.setTimeout(600);
+
+   socket.on('error', (err) => {
+     if( typeof( handler) === 'function')
+     {
+        handler(null, err);
+     }
+   });
+
+   socket.on('timeout', () => {
+
+     if( commands.length )
+     {
+         socket.write( commands.shift()+"\r");
+     }
+     else {
+     	     //console.log( "DEBUG "+answers.toString());
+	     //denon.write(command+"\r"); // can keep connection
+	     socket.end();
+
+	     if( typeof( handler) === 'function')
+	     {
+	       setTimeout( function() { handler( answers); }, 200 );
+	     }
+     }
+   });
+
+   socket.connect( 23, this.ip, function() {
+     socket.write( commands.shift()+"\r");
+   });
+
+   socket.on('data', function(data) {
+     answers.push( data.toString().slice(0, -1) ); //remove trailing \n and append to answers
+   });
+
+}
+
+// ------------------------------------------------------------------------------------------
+
+var denon = new Denon( 'denon.lan');
+
+var services = {};
+
+var short_name_map = {
+	cuisine: "Bose-Cuisine",
+	salon:   "Bose-Salon-Rdc",
+	enfants: "Bose-Salon-Haut",
+	bureau:  "Bose-Bureau"
+};
+
+var bose_salon_rdc = null;
+
+
+app.get('/', (req, res) => {
+  res.send('Hello World!');
+});
+
+app.get("/api/service", (req, res) => {
+  res.json( services);
+});
+
+app.get("/api/key/:key", (req, res) => {
+  bose_salon_rdc.key( req.params.key, function( success) {
+    res.json( success);
+  } );
+});
+
+app.get("/api/group/:name", (req, res) => {
+  if (!( req.params.name in short_name_map)) {
+    res.status(400).json( { message: "not found" })
+    return
+  }
+  bose_salon_rdc.setZone( [ services[ short_name_map[ req.params.name ]] ], function( success) {
+    res.json( success);
+  });
+});
+
+app.get("/api/ungroup/:name", (req, res) => {
+  if (!( req.params.name in short_name_map)) {
+    res.status(400).json( { message: "not found" })
+    return
+  }
+  bose_salon_rdc.removeZoneSlave( [ services[ short_name_map[ req.params.name ]] ], function( success) {
+    res.json( success);
+  });
+});
 
 /*
-    var actualVolume = $(body).find("actualvolume").first().text();
-    console.log("Actual volume of "+ service.name +" : " + actualVolume);
+// browse for all http services
+bonjour.find({ type: 'spotify-connect' }, function (service) {
+  console.log('-- Found a spotify-connect device: ')
+  console.log( service)
+})
 */
-  })
+
+
+function syncDenonOnBoseSalonRdcPowerChange( bose)
+{
+	
+        console.log( bose+" powered: "+ bose.powerOn);
+
+	if( bose.powerOn)
+        {
+	  denon.call( ["Z2?"], function( answers, err) {
+            if (err) { return console.log( err) }
+            if( answers.indexOf( "Z2OFF") != -1) {
+		console.log("Switching on Denon")
+		denon.call( [ "Z2ON", "Z2AUX1" ] ) ;
+		//denon_command( "Z250"); //set volume
+	    }
+            else if( answers.indexOf( "Z2ON") != -1) {
+		console.log("Denon is on")
+            }
+	  } );
+	}
+	else
+	{
+	  denon.call( [ "Z2?" ], function( answers, err) {
+            if (err) { return console.log( err) }
+            if( answers.indexOf( "Z2ON") != -1 && answers.indexOf( "Z2AUX1") != -1) {
+		console.log("Denon is on AUX1, switching it off")
+		denon.call( [ "Z2OFF" ] );
+	    }
+          })
+	}
+
 }
+
+
+
+// browse for all http services
+var soundtouch = bonjour.find({ type: 'soundtouch' });
+
+soundtouch.on("up", function (service) {
+
+
+  // format:{"Bose-Salon-Rdc":{"addresses":["192.168.2.246"],"txt":{"description":"SoundTouch","mac":"04A316E14903","manufacturer":"Bose Corporation","model":"SoundTouch"},"name":"Bose-Salon-Rdc","fqdn":"Bose-Salon-Rdc._soundtouch._tcp.local","host":"binky-1436213703.local","referer":{"address":"192.168.2.246","family":"IPv4","port":5353,"size":215},"port":8090,"type":"soundtouch","protocol":"tcp","subtypes":[]}
+	//
+  var bose = new BoseSoundTouch( service.name, service.addresses[0], service.txt.mac, service.txt.model, service.port);
+
+  services[service.name] = bose;
+
+  console.log( "registering new device "+bose);
+
+  // activate listener (websocket)
+  bose.listen();
+  bose.getInfo();
+  bose.getZone();
+
+  if ( bose.name === "Bose-Salon-Rdc")
+  {
+     console.log( "Bose-Salon-Rdc found !");
+     bose_salon_rdc = bose;
+     bose_salon_rdc.on( 'powerChange', syncDenonOnBoseSalonRdcPowerChange);
+     bose_salon_rdc.sync();
+  }
+})
+
+soundtouch.on("down", function (service) {
+
+  if (service.name in services) {
+	  var bose = services[service.name];
+	  console.log(bose+" left, unregistering it");
+	  bose.close();
+	  delete services[service.name];
+  }
+})
+
+
 
 app.listen(3000, () => {
   console.log('Example app listening '+test_env+' on port 3000!');
 });
+
 
