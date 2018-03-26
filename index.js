@@ -81,14 +81,22 @@ BoseSoundTouch.prototype.parseNowPlaying = function( message) {
 			album          : message.album[0],
 			art            : message.art[0]._,
 			station        : message.stationName[0],
+			time           : null,
+			totalTime      : null
 			//shuffleSetting : message.shuffleSetting[0],
 			//repeatSetting  : message.repeatSetting[0],
 			//trackID        : message.trackID[0]
-			//time           : message.time[0]._,
-			//totalTime      : message.time[0].$.total
 		};
+
+		if ('time' in message) {
+			current.playing.time        = message.time[0]._;
+			current.playing.totalTime   = message.time[0].$.total;
+		}
+
+
         }
 	catch( e) {
+		console.log( e);
 		current.playing = { };
 	}
 
