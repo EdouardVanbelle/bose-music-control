@@ -399,32 +399,27 @@ BoseSoundTouch.prototype.getZone = function( handler) {
   });
 }
 
-BoseSoundTouch.prototype.setZone = function( slaves, handler) {
-
+BoseSoundTouch.prototype._zone = function( slaves) {
   var xml = xmlBuilder.create('zone', {version: '1.0', encoding: 'UTF-8'})
 		   .att( 'master', this.mac)
 
   slaves.forEach( function( slave) {
-  	console.log( "group zone to "+slave.name)
 	xml = xml.ele('member', {"ipaddress": slave.ip }, slave.mac)
   });
+  
+  return xml;
 
-  this._post( 'setZone', xml, function(err, res, body) {
+}
+
+BoseSoundTouch.prototype.setZone = function( slaves, handler) {
+  this._post( 'setZone', this._zone( slaves), function(err, res, body) {
     if (err) { console.log( err); }
     handler( res.statusCode == 200);
   });
 }
 
 BoseSoundTouch.prototype.removeZoneSlave = function( slaves, handler) {
-  var xml = xmlBuilder.create('zone', {version: '1.0', encoding: 'UTF-8'})
-		   .att( 'master', this.mac)
-
-  slaves.forEach( function( slave) {
-  	console.log( "ungroup zone to "+slave.name)
-	xml = xml.ele('member', {"ipaddress": slave.ip }, slave.mac)
-  });
-
-  this._post('removeZoneSlave', xml, function(err, res, body) {
+  this._post('removeZoneSlave', this._zone( slaves), function(err, res, body) {
     if (err) { return console.log( err); }
     handler( res.statusCode == 200);
   });
@@ -436,9 +431,16 @@ BoseSoundTouch.prototype.key = function( key, handler) {
                    .att("sender", "Gabbo")
 		   .txt(key)
 
-  this._post( 'key', xml, function(err, res, body) {
+  var current = this;
+  // presskey
+  current._post( 'key', xml, function(err, res, body) {
     if (err) { console.log( err); }
-    handler( res.statusCode == 200);
+    // now release key
+    xml.att("state", "release"); 
+    current._post( 'key', xml, function(err, res, body) {
+    	if (err) { console.log( err); }
+        handler( res.statusCode == 200);
+    });
   });
 }
 
