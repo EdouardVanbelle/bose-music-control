@@ -85,10 +85,117 @@ class BoseSoundTouch extends EventEmitter {
 
 		current.volume = {
 			current : message.targetvolume[0],
-			mute    : message.muteenabled[0]
+			mute    : (message.muteenabled[0] == "true")
 		};
 
+		console.log( current+( current.volume.mute ? " is mute" : " current volume "+current.volume.current));
 	}
+
+	/*
+	 *
+	 */
+							/*
+							ADD:
+
+							 Bose-Salon-Rdc (04A316E14903) received zoneUpdated notification
+							 event not yet treated
+							 <updates deviceID="04A316E14903"><zoneUpdated><zone master="04A316E14903"><member ipaddress="192.168.2.188">A0F6FD3D536C</member></zone></zoneUpdated></updates>
+							 { zone: [ { '$': [Object], member: [Array] } ] }
+							 Bose-Cuisine (A0F6FD3D536C) received zoneUpdated notification
+							 event not yet treated
+							 <updates deviceID="A0F6FD3D536C"><zoneUpdated><zone master="04A316E14903" senderIPAddress="192.168.2.246" senderIsMaster="true"><member ipaddress="192.168.2.188">A0F6FD3D536C</member></zone></zoneUpdated></updates>
+							 { zone: [ { '$': [Object], member: [Array] } ] }
+
+							 REM:
+
+							 <updates deviceID="04A316E14903"><zoneUpdated><zone /></zoneUpdated></updates>
+							 { zone: [ '' ] }
+							 Bose-Cuisine (A0F6FD3D536C) received nowPlayingUpdated notification
+							 Bose-Cuisine (A0F6FD3D536C) source: STANDBY, playing: ERROR
+							 {}
+							 Bose-Cuisine (A0F6FD3D536C) received zoneUpdated notification
+							 event not yet treated
+							 <updates deviceID="A0F6FD3D536C"><zoneUpdated><zone /></zoneUpdated></updates>
+							 { zone: [ '' ] }
+							 Bose-Cuisine (A0F6FD3D536C) received nowPlayingUpdated notification
+							 Bose-Cuisine (A0F6FD3D536C) source: STANDBY, playing: ERROR
+							 {}
+
+							 */
+
+	parseZone( message) {
+		var current = this;
+
+		//simplify
+		message = message.zone;
+		if( Array.isArray( message)) { 
+			message = message.shift();
+		}
+
+		if( (message === null) || (message === ''))
+		{
+			console.log(current+' is standalone (no zone)')
+
+			current.zone = {};
+			current.zone.isSlave      = false;
+			current.zone.isMaster     = false;
+			current.zone.isStandalone = true;
+			current.zone.slaves       = [];
+			current.zone.master       = null;
+		}
+		else {
+
+			var mastermac = message.$.master;
+
+			if( mastermac == current.mac)
+			{
+
+				current.zone = {};
+				current.zone.isSlave      = false;
+				current.zone.isMaster     = true;
+				current.zone.isStandalone = false;
+				current.zone.slaves       = [];
+				current.zone.master       = mastermac;
+
+				console.log( current+" is master zone");
+
+				for( var i=0; i<message.member.length; i++) {
+					var membermac = message.member[i]._;
+					if( membermac == current.mac) continue; // ignore himelf
+
+					var slave = lookupFromMac( membermac);
+					console.log( current+ " got member "+slave);
+
+					current.zone.slaves.push( membermac);
+				}
+			}
+			else
+			{
+				var master = lookupFromMac( mastermac);
+				console.log( current+" is slave zone of "+ master);
+
+				current.zone = {};
+				current.zone.isSlave      = true;
+				current.zone.isMaster     = false;
+				current.zone.isStandalone = false;
+				current.zone.slaves       = [];
+				current.zone.master       = mastermac;
+			}
+
+		}
+/*
+		ose-Salon-Rdc (04A316E14903) received zoneUpdated notification
+		{ '$': { master: '04A316E14903' },
+		  member: [ 
+		  	{ _: '04A316E14903', '$': [Object] },
+		  	{ _: 'A0F6FD3D536C', '$': [Object] } 
+		  ] }
+		Bose-Cuisine (A0F6FD3D536C) received zoneUpdated notification
+		{ '$': { master: '04A316E14903', senderIPAddress: '192.168.2.246', senderIsMaster: 'true' },
+		  member: [ { _: 'A0F6FD3D536C', '$': [Object] } ] }
+*/
+	}
+
 
 
 	/*
@@ -145,7 +252,7 @@ class BoseSoundTouch extends EventEmitter {
 			current.playing = { };
 		}
 
-		var playStatus = (('playStatus' in current.playing) ? current.playing.playStatus : "UNKNOWN");
+		var playStatus = (('playStatus' in current.playing) ? current.playing.playStatus : "NONE");
 		var source     = "ERROR";
 
 		try { source = message.$.source;          } catch( e) { console.log(e); console.log( message) }
@@ -154,8 +261,8 @@ class BoseSoundTouch extends EventEmitter {
 
 		//  powerOn = ( playStatus == "PLAY_STATE" || playStatus == "BUFFERING_STATE" || playStatus == "PAUSE_STATE" || playStatus == "INVALID_PLAY_STATUS")
 
-		console.log( current+" source: "+source+", playing: "+playStatus)
-		console.log( current.playing);
+		var playing = ("track" in current.playing ? ( current.playing.track +" (from: "+current.playing.artist+")" ) : ( "stationName" in current.playing ? current.playing.stationName : null));
+		console.log( current+" source: "+source+", play status: "+playStatus+", playing: "+playing);
 
 		current.source = source;
 
@@ -345,36 +452,8 @@ class BoseSoundTouch extends EventEmitter {
 						}
 						else if( key === 'zoneUpdated') {
 
-							// TODO
+							current.parseZone( finalMessage);
 							
-							/*
-							ADD:
-
-							 Bose-Salon-Rdc (04A316E14903) received zoneUpdated notification
-							 event not yet treated
-							 <updates deviceID="04A316E14903"><zoneUpdated><zone master="04A316E14903"><member ipaddress="192.168.2.188">A0F6FD3D536C</member></zone></zoneUpdated></updates>
-							 { zone: [ { '$': [Object], member: [Array] } ] }
-							 Bose-Cuisine (A0F6FD3D536C) received zoneUpdated notification
-							 event not yet treated
-							 <updates deviceID="A0F6FD3D536C"><zoneUpdated><zone master="04A316E14903" senderIPAddress="192.168.2.246" senderIsMaster="true"><member ipaddress="192.168.2.188">A0F6FD3D536C</member></zone></zoneUpdated></updates>
-							 { zone: [ { '$': [Object], member: [Array] } ] }
-
-							 REM:
-
-							 <updates deviceID="04A316E14903"><zoneUpdated><zone /></zoneUpdated></updates>
-							 { zone: [ '' ] }
-							 Bose-Cuisine (A0F6FD3D536C) received nowPlayingUpdated notification
-							 Bose-Cuisine (A0F6FD3D536C) source: STANDBY, playing: ERROR
-							 {}
-							 Bose-Cuisine (A0F6FD3D536C) received zoneUpdated notification
-							 event not yet treated
-							 <updates deviceID="A0F6FD3D536C"><zoneUpdated><zone /></zoneUpdated></updates>
-							 { zone: [ '' ] }
-							 Bose-Cuisine (A0F6FD3D536C) received nowPlayingUpdated notification
-							 Bose-Cuisine (A0F6FD3D536C) source: STANDBY, playing: ERROR
-							 {}
-
-							 */
 						}
 						else {
 							console.log("event not yet treated");
@@ -448,6 +527,7 @@ class BoseSoundTouch extends EventEmitter {
 
 	  var current = this;
 
+
 	  this._get( 'now_playing', function(err, res, body) {
 	    if (err) { return console.log( err); }
 
@@ -460,6 +540,8 @@ class BoseSoundTouch extends EventEmitter {
 	    })
 
 	  })
+  	  this.volume();
+  	  this.getZone();
 	}
 
 	/*
@@ -525,10 +607,23 @@ class BoseSoundTouch extends EventEmitter {
 	  var current = this;
 	  this._get( 'getZone', function(err, res, body) {
 	    if (err) { return console.log( err); }
-	    xmlParser.parseString(body, function (err, result) {
+	    xmlParser.parseString(body, function (err, zone) {
 	      if (err) { return console.log( err); }
-		    //console.log( body);
-		    //TODO
+		    current.parseZone( zone);
+	    });
+	  });
+	}
+
+	/*
+	 *
+	 */
+	volume( handler) {
+	  var current = this;
+	  this._get( 'volume', function(err, res, body) {
+	    if (err) { return console.log( err); }
+	    xmlParser.parseString(body, function (err, json) {
+	      if (err) { return console.log( err); }
+		    current.parseVolumeState( json);
 	    });
 	  });
 	}
@@ -712,6 +807,16 @@ bonjour.find({ type: 'spotify-connect' }, function (service) {
 })
 */
 
+//stupid lookup in O(n)
+function lookupFromMac( mac) {
+	for( var key in services) {
+		if( services[key].mac == mac)
+			return services[key];
+	}
+
+	return null; //not found@:w
+
+}
 
 function syncDenonOnBoseSalonRdcPowerChange( bose)
 {
@@ -764,7 +869,6 @@ soundtouch.on("up", function (service) {
   // activate listener (websocket)
   bose.listen();
   bose.getInfo();
-  bose.getZone();
 
   if ( bose.name === "Bose-Salon-Rdc")
   {
@@ -789,7 +893,7 @@ soundtouch.on("down", function (service) {
 
 
 app.listen(3000, () => {
-  console.log('Example app listening '+test_env+' on port 3000!');
+  console.log('music control is running on 3000!');
 });
 
 //setTimeout( function() { console.log("XXX simulate connection close"); bose_salon_rdc.end(); }, 30000);
