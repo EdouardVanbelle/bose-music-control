@@ -6,7 +6,7 @@ const express = require('express');
 const bonjour = require('bonjour')()
 
 const BoseSoundTouch = require('./lib/bosesoundtouch');
-const Denon          = require('./lib/denon');
+const Denon          = require('./lib/denon-avr');
 
 const app = express();
 
