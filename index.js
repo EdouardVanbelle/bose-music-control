@@ -20,9 +20,34 @@ app.get("/api/bose", (req, res) => {
   res.json( BoseSoundTouch.registered());
 });
 
+app.get("/api/bose/:bose", (req, res) => {
+
+  var bose = BoseSoundTouch.lookup( req.params.bose);
+  if (!bose) {
+    res.status(400).json( { message: "not found" })
+    return
+  }
+
+  res.json( bose );
+});
+
+app.get("/api/bose/:bose/notify", (req, res) => {
+
+  var bose = BoseSoundTouch.lookup( req.params.bose);
+  if (!bose) {
+    res.status(400).json( { message: "not found" })
+    return
+  }
+
+  bose.notify( process.env.NOTIF_KEY, process.env.NOTIF_URL, function( success) {
+    res.json( success)
+  });
+});
+
+
 app.get("/api/bose/:bose/check", (req, res) => {
 
-  var bose = lookup( req.params.bose);
+  var bose = BoseSoundTouch.lookup( req.params.bose);
   if (!bose) {
     res.status(400).json( { message: "not found" })
     return
@@ -34,7 +59,7 @@ app.get("/api/bose/:bose/check", (req, res) => {
 
 app.get("/api/bose/:bose/key/:key", (req, res) => {
 
-  var bose = lookup( req.params.bosee);
+  var bose = BoseSoundTouch.lookup( req.params.bose);
   if (!bose) {
     res.status(400).json( { message: "not found" })
     return
@@ -47,13 +72,13 @@ app.get("/api/bose/:bose/key/:key", (req, res) => {
 
 app.get("/api/bose/:bose/group/:slave", (req, res) => {
 
-  var bose = lookup( req.params.bosee);
+  var bose = BoseSoundTouch.lookup( req.params.bose);
   if (!bose) {
     res.status(400).json( { message: "not found" })
     return
   }
 
-  var slave = lookup( req.params.slave);
+  var slave = BoseSoundTouch.lookup( req.params.slave);
   if (!slave) {
     res.status(400).json( { message: "not found" })
     return
@@ -64,15 +89,44 @@ app.get("/api/bose/:bose/group/:slave", (req, res) => {
   });
 });
 
+app.get("/api/denon/volume", (req, res) => {
+	denon.call(["Z2?"], function( answers, err) {
+		if( err) { res.status(400).json({ message: err }); return }
+		res.json( answers)
+	})
+});
+
+app.get("/api/denon/volume/:volume", (req, res) => {
+	var vol;
+	if( req.params.volume == "up" || req.params.volume == "down")
+	{
+		vol = req.params.volume.toUpperCase();
+	}
+	else 
+	{
+		vol = parseInt( req.params.volume);
+		if ( isNaN( vol) || (vol < 0) || (vol > 100)) {
+			res.status(400).json({ message: "wrong value" })
+			return
+		}
+	}
+	denon.call(["Z2"+vol], function( answers, err) {
+		if( err) { res.status(400).json({ message: err }); return }
+		res.json( answers)
+	})
+});
+
+
+
 app.get("/api/bose/:bose/ungroup/:slave", (req, res) => {
 
-  var bose = lookup( req.params.bosee);
+  var bose = BoseSoundTouch.lookup( req.params.bose);
   if (!bose) {
     res.status(400).json( { message: "not found" })
     return
   }
 
-  var slave = lookup( req.params.slave);
+  var slave = BoseSoundTouch.lookup( req.params.slave);
   if (!slave) {
     res.status(400).json( { message: "not found" })
     return
@@ -144,7 +198,7 @@ soundtouch.on("up", function (service) {
 
 soundtouch.on("down", function (service) {
 
-  var bose = lookup(service.txt.mac);
+  var bose = BoseSoundTouch.lookup(service.txt.mac);
   if (! bose) return;
 
   bose.close();
