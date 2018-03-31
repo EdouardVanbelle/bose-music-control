@@ -39,8 +39,13 @@ app.get("/api/bose/:bose/notify", (req, res) => {
     return
   }
 
-  bose.notify( process.env.NOTIF_KEY, process.env.NOTIF_URL, function( success) {
-    res.json( success)
+  bose.notify( process.env.NOTIF_KEY, process.env.NOTIF_URL, function( err, success) {
+    if( err) {
+    	res.status(400).json( err);
+    }
+    else {
+    	res.json( success);
+    }
   });
 });
 
@@ -65,8 +70,13 @@ app.get("/api/bose/:bose/key/:key", (req, res) => {
     return
   }
 
-  bose.key( req.params.key, function( success) {
-    res.json( success);
+  bose.key( req.params.key, function( err, success) {
+    if( err) {
+    	res.status(400).json( { message: "not found" })
+    }
+    else {
+    	res.json( success);
+    }
   } );
 });
 
