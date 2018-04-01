@@ -72,7 +72,7 @@ app.get("/api/bose/:bose/key/:key", (req, res) => {
 
   bose.key( req.params.key, function( err, success) {
     if( err) {
-    	res.status(400).json( { message: "not found" })
+    	res.status(400).json( { message: err })
     }
     else {
     	res.json( success);
@@ -94,13 +94,18 @@ app.get("/api/bose/:bose/group/:slave", (req, res) => {
     return
   }
 
-  bose.setZone( [ slave ], function( success) {
-    res.json( success);
+  bose.setZone( [ slave ], function( err, success) {
+    if( err) {
+    	res.status(400).json( { message: "not found" })
+    }
+    else {
+    	res.json( success);
+    }
   });
 });
 
 app.get("/api/denon/volume", (req, res) => {
-	denon.call(["Z2?"], function( answers, err) {
+	denon.call(["Z2?"], function( err, answers) {
 		if( err) { res.status(400).json({ message: err }); return }
 		res.json( answers)
 	})
@@ -120,7 +125,7 @@ app.get("/api/denon/volume/:volume", (req, res) => {
 			return
 		}
 	}
-	denon.call(["Z2"+vol], function( answers, err) {
+	denon.call(["Z2"+vol], function( err, answers) {
 		if( err) { res.status(400).json({ message: err }); return }
 		res.json( answers)
 	})
@@ -132,7 +137,7 @@ app.get("/api/bose/:bose/ungroup/:slave", (req, res) => {
 
   var bose = BoseSoundTouch.lookup( req.params.bose);
   if (!bose) {
-    res.status(400).json( { message: "not found" })
+    res.status(400).json( { message: "not found"  })
     return
   }
 
@@ -142,8 +147,13 @@ app.get("/api/bose/:bose/ungroup/:slave", (req, res) => {
     return
   }
 
-  bose.removeZoneSlave( [ slave ], function( success) {
-    res.json( success);
+  bose.removeZoneSlave( [ slave ], function( err, success) {
+    if( err) {
+    	res.status(400).json( { message: "not found" })
+    }
+    else {
+    	res.json( success);
+    }
   });
 });
 
@@ -154,7 +164,7 @@ function syncDenonOnBoseSalonRdcPowerChange( bose)
 
 	if( bose.powerOn)
         {
-	  denon.call( ["Z2?"], function( answers, err) {
+	  denon.call( ["Z2?"], function( err, answers) {
             if (err) { return console.log( err) }
             if( answers.indexOf( "Z2OFF") != -1) {
 		console.log("Switching on Denon")
@@ -168,7 +178,7 @@ function syncDenonOnBoseSalonRdcPowerChange( bose)
 	}
 	else
 	{
-	  denon.call( [ "Z2?" ], function( answers, err) {
+	  denon.call( [ "Z2?" ], function( err, answers) {
             if (err) { return console.log( err) }
             if( answers.indexOf( "Z2ON") != -1 && answers.indexOf( "Z2AUX1") != -1) {
 		console.log("Denon is on AUX1, switching it off")
