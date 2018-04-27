@@ -10,11 +10,20 @@ const Denon          = require('./lib/denon-avr');
 
 const app = express();
 
+app.set('view engine', 'ejs')
+app.use(express.static('public'));
+
 var denon = new Denon( process.env.DENON_ADDRESS);
 
+app.get('/', function (req, res) {
+   res.render('index', { title: "test", boses: BoseSoundTouch.registered() });
+})
+
+/*
 app.get('/', (req, res) => {
   res.send('Hello World!');
 });
+*/
 
 app.get("/api/bose", (req, res) => {
   res.json( BoseSoundTouch.registered());
@@ -49,6 +58,24 @@ app.get("/api/bose/:bose/notify", (req, res) => {
   });
 });
 
+app.get("/api/bose/:bose/volume/:volume", (req, res) => {
+
+  var bose = BoseSoundTouch.lookup( req.params.bose);
+  if (!bose) {
+    res.status(400).json( { message: "not found" })
+    return
+  }
+
+  bose.setVolume( req.params.volume, function( err, success) {
+    if( err) {
+    	res.status(400).json( err);
+    }
+    else {
+    	res.json( success);
+    }
+  });
+});
+
 
 app.get("/api/bose/:bose/check", (req, res) => {
 
@@ -59,6 +86,17 @@ app.get("/api/bose/:bose/check", (req, res) => {
   }
 
   res.json( bose.checkWebSocket() );
+});
+
+app.get("/api/bose/:bose/sync", (req, res) => {
+
+  var bose = BoseSoundTouch.lookup( req.params.bose);
+  if (!bose) {
+    res.status(400).json( { message: "not found" })
+    return
+  }
+
+  res.json( bose.sync() );
 });
 
 
@@ -80,38 +118,77 @@ app.get("/api/bose/:bose/key/:key", (req, res) => {
   } );
 });
 
-app.get("/api/bose/:bose/group/:slave", (req, res) => {
-
-  var bose = BoseSoundTouch.lookup( req.params.bose);
-  if (!bose) {
-    res.status(400).json( { message: "not found" })
-    return
-  }
-
-  var slave = BoseSoundTouch.lookup( req.params.slave);
-  if (!slave) {
-    res.status(400).json( { message: "not found" })
-    return
-  }
-
-  bose.setZone( [ slave ], function( err, success) {
-    if( err) {
-    	res.status(400).json( { message: "not found" })
-    }
-    else {
-    	res.json( success);
-    }
-  });
+app.get("/api/denon/main/source", (req, res) => {
+	denon.call(["SI?"], function( err, answers) {
+		if( err) { res.status(400).json({ message: err }); return }
+		res.json( answers)
+	})
 });
 
-app.get("/api/denon/volume", (req, res) => {
+
+app.get("/api/denon/main/volume", (req, res) => {
+	denon.call(["MV?"], function( err, answers) {
+		if( err) { res.status(400).json({ message: err }); return }
+		res.json( answers)
+	})
+});
+
+app.get("/api/denon/main/volume/:volume", (req, res) => {
+	var vol;
+	if( req.params.volume == "up" || req.params.volume == "down")
+	{
+		vol = req.params.volume.toUpperCase();
+	}
+	else 
+	{
+		vol = parseInt( req.params.volume);
+		if ( isNaN( vol) || (vol < 0) || (vol > 100)) {
+			res.status(400).json({ message: "wrong value" })
+			return
+		}
+	}
+	denon.call(["MV"+vol], function( err, answers) {
+		if( err) { res.status(400).json({ message: err }); return }
+		res.json( answers)
+	})
+});
+
+app.get("/api/denon/main/central", (req, res) => {
+	denon.call(["CVC ?"], function( err, answers) {
+		if( err) { res.status(400).json({ message: err }); return }
+		res.json( answers)
+	})
+});
+
+app.get("/api/denon/main/central/:volume", (req, res) => {
+	var vol;
+	if( req.params.volume == "up" || req.params.volume == "down")
+	{
+		vol = req.params.volume.toUpperCase();
+	}
+	else 
+	{
+		vol = parseInt( req.params.volume);
+		if ( isNaN( vol) || (vol < 0) || (vol > 100)) {
+			res.status(400).json({ message: "wrong value" })
+			return
+		}
+	}
+	denon.call(["CVC "+vol], function( err, answers) {
+		if( err) { res.status(400).json({ message: err }); return }
+		res.json( answers)
+	})
+});
+
+
+app.get("/api/denon/z2/volume", (req, res) => {
 	denon.call(["Z2?"], function( err, answers) {
 		if( err) { res.status(400).json({ message: err }); return }
 		res.json( answers)
 	})
 });
 
-app.get("/api/denon/volume/:volume", (req, res) => {
+app.get("/api/denon/z2/volume/:volume", (req, res) => {
 	var vol;
 	if( req.params.volume == "up" || req.params.volume == "down")
 	{
@@ -129,6 +206,30 @@ app.get("/api/denon/volume/:volume", (req, res) => {
 		if( err) { res.status(400).json({ message: err }); return }
 		res.json( answers)
 	})
+});
+
+app.get("/api/bose/:bose/group/:slave", (req, res) => {
+
+  var bose = BoseSoundTouch.lookup( req.params.bose);
+  if (!bose) {
+    res.status(400).json( { message: "not found" })
+    return
+  }
+
+  var slave = BoseSoundTouch.lookup( req.params.slave);
+  if (!slave) {
+    res.status(400).json( { message: "not found" })
+    return
+  }
+
+  bose.addZoneSlave( [ slave ], function( err, success) {
+    if( err) {
+    	res.status(400).json( { message: "not found" })
+    }
+    else {
+    	res.json( success);
+    }
+  });
 });
 
 
@@ -201,10 +302,16 @@ soundtouch.on("up", function (service) {
 	//
   var bose = new BoseSoundTouch( service.name, service.addresses[0], service.txt.mac, service.txt.model, service.port);
 
+  var previous = BoseSoundTouch.lookup( bose.mac);
+  if( previous) {
+  	console.log( "found previous instance with same mac, clean it up");
+  	previous.unregister();
+  }
+
   bose.register();
 
-  // activate listener (websocket)
-  bose.listen();
+  //connect websocket ( + will sync() )
+  bose.connect();
   bose.getInfo();
 
   if ( bose.name === process.env.BOSE_WIRED_TO_DENON)
@@ -213,7 +320,6 @@ soundtouch.on("up", function (service) {
      bose.on( 'powerChange', syncDenonOnBoseSalonRdcPowerChange);
   }
 
-  bose.sync();
 })
 
 soundtouch.on("down", function (service) {
@@ -221,7 +327,7 @@ soundtouch.on("down", function (service) {
   var bose = BoseSoundTouch.lookup(service.txt.mac);
   if (! bose) return;
 
-  bose.close();
+  console.log( "Unregistering device: " + bose);
   bose.unregister();
 
 })

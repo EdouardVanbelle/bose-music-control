@@ -1,0 +1,21 @@
+.container {
+	width: 100%;
+}
+fieldset {
+	float: left;
+	width: 90%;
+	max-width: 500px;
+	min-height: 350px;
+}
+.clear {  
+	clear: both;
+}
+.art {
+	width: 50%;
+	float: right;
+}	
+.buttons {
+	font-size: 30px;
+	float: left;
+}
+

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title><%= title %></title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0 maximum-scale=1.0, user-scalable=no">
+    <link rel="stylesheet" type="text/css" href="css/ionicons.css">
+    <link rel="stylesheet" type="text/css" href="css/main.css">
+    <script src="js/jquery-3.3.1.min.js"></script>
+    <script src="js/main.js"></script>
+  </head> 
+  <body>
+    <div class="container">
+    <% for (var i=0; i < boses.length; i++) { 
+	var bose = boses[i];
+        if ( bose.zone.isSlave)
+		continue;
+    %>
+      <fieldset>
+	      <legend title="<%= JSON.stringify( bose, null, 2) %>" ><%= bose.name + ( bose.zone.isMaster ? " Group" : "" ) %></legend>
+		      <% if (('art' in bose.playing) && bose.playing.art ) { %>
+		      <div class="ion-music-note"> <%= bose.playing.track ? bose.playing.track : bose.playing.stationName %>
+		      <span class="ion-person"> <%= bose.playing.artist %></span>
+		      </div>
+	      	      <img class="art" src="<%= bose.playing.art %>"/>
+		      <% } %>
+		      <div class="buttons" >
+			      <div>
+				      <a class="ion-power"           target="action" href="/api/bose/<%= bose.mac %>/key/POWER" style="color: <%= bose.powerOn ? 'green' : 'black'%>"></a>
+				      <a class="ion-volume-mute"     target="action" href="/api/bose/<%= bose.mac %>/key/MUTE"></a>
+				      <input class="volume" data-mac="<%= bose.mac %>" type="range" min="1" max="100" value="<%= bose.volume.current %>" ></input><span>?</span>
+			      </div>
+			      <div>
+				      <a class="ion-skip-backward"   target="action" href="/api/bose/<%= bose.mac %>/key/PREV_TRACK"></a>
+				      <a class="ion-play"            target="action" href="/api/bose/<%= bose.mac %>/key/PLAY_PAUSE"></a>
+				      <a class="ion-skip-forward"    target="action" href="/api/bose/<%= bose.mac %>/key/NEXT_TRACK"></a>
+			      </div>
+			      <div class="ion-bookmark">
+				      <a target="action" href="/api/bose/<%= bose.mac %>/key/PRESET_1">1</a>
+				      <a target="action" href="/api/bose/<%= bose.mac %>/key/PRESET_2">2</a>
+				      <a target="action" href="/api/bose/<%= bose.mac %>/key/PRESET_3">3</a>
+				      <a target="action" href="/api/bose/<%= bose.mac %>/key/PRESET_4">4</a>
+				      <a target="action" href="/api/bose/<%= bose.mac %>/key/PRESET_5">5</a>
+				      <a target="action" href="/api/bose/<%= bose.mac %>/key/PRESET_6">6</a>
+			      </div>
+			      <div>
+				      <a class="ion-thumbsup"        target="action" href="/api/bose/<%= bose.mac %>/key/THUMBS_UP"></a>
+				      <a class="ion-thumbsdown"      target="action" href="/api/bose/<%= bose.mac %>/key/THUMBS_DOWN"></a>
+			      </div>
+		      </div>
+		      <div class="clear" ><br/></div>
+
+		      <div style="padding-left: 3em; <%= bose.powerOn ? '' : 'visibility: hidden;' %>">
+		      <% for (var j=0; j < boses.length; j++) {
+				if (i==j) continue;
+				var slave = boses[j];
+				if ( bose.zone.slaves.indexOf( slave.mac ) == -1 ) {
+			      %>
+				<a class="ion-toggle"        target="action" href="/api/bose/<%= bose.mac %>/group/<%= slave.mac %>"><%= slave.name %></a>
+				<input data-mac="<%= slave.mac %>" class="volume" type="range" min="1" max="100" value="<%= slave.volume.current %>" disabled=disabled /><span>?</span><br/>
+			      <% } else { %>
+				<a class="ion-toggle-filled" target="action" href="/api/bose/<%= bose.mac %>/ungroup/<%= slave.mac %>"><%= slave.name %></a>
+				<input data-mac="<%= slave.mac %>" class="volume" type="range" min="1" max="100" value="<%= slave.volume.current %>" /><span></span><br/>
+				<% } } %>
+		      </div>
+      </fieldset>
+    <% } %>
+    </div>
+    <p class="clear" />
+    <iframe src="about:blank" style="width:100% ;height:2em;border:0; border:none;" name="action" id="actionFrm"></iframe>
+  </body>
+</html>
+
