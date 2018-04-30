@@ -53,8 +53,7 @@ body {
 	margin: 2px;
 	border: solid 1px var( --button-hover);
 	border-radius: 10px;
-	background: var( --card-background);
-
+	background-color: var( --card-background);
 }
 
 .player {
@@ -88,17 +87,32 @@ body {
 	text-align: center;
 	position: relative;
 }
+
 .art {
 	width: 90%;
 	height: 90%;
-	border-radius: 50%;
-	border: solid 1px var( --button-hover);
 }	
 #favorite {
     position: absolute;
-    top: 0px;
-    right: 0px;
+    top: 10px;
+    right: 10px;
     color: red;
+    font-size: 28px;
+    background: var( --button-background);
+    padding: 3px;
+    border-radius: 3px;
+    width: 32px;
+    height: 32px;
+}
+#spotify {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    width: 32px;
+    height: 32px;
+    background: var( --button-background);
+    padding: 3px;
+    border-radius: 3px;
 }
 .main-buttons {
 	flex-direction: column;
@@ -130,7 +144,7 @@ a:hover {
 	background: var( --button-hover);
 }
 
-a {
+a, .fake-button {
 	display: block;
 	text-decoration: none;
 	color: var( --text);;

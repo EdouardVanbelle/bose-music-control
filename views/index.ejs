@@ -25,11 +25,11 @@
 		      <div class="main-buttons" >
 			      <div class="buttons-container">
 				      <a class="ion-power"           target="action" href="/api/bose/<%= bose.mac %>/key/POWER" style="color: <%= bose.powerOn ? 'green' : 'black'%>"></a>
-				      <a class="ion-volume-mute"     target="action" href="/api/bose/<%= bose.mac %>/key/MUTE"  style="<%= bose.powerOn ? '' : 'visibility: hidden' %>"></a>
+				      <a class="ion-play"            target="action" href="/api/bose/<%= bose.mac %>/key/PLAY_PAUSE"></a>
+				      <!-- <a class="ion-volume-mute"     target="action" href="/api/bose/<%= bose.mac %>/key/MUTE"  style="<%= bose.powerOn ? '' : 'visibility: hidden' %>"></a> -->
 			      </div>
 			      <div class="buttons-container">
 				      <a class="ion-skip-backward"   target="action" href="/api/bose/<%= bose.mac %>/key/PREV_TRACK" style="<%= (bose.powerOn && bose.playing.skipPreviousEnabled) ? '' : 'visibility: hidden' %>"></a>
-				      <a class="ion-play"            target="action" href="/api/bose/<%= bose.mac %>/key/PLAY_PAUSE"></a>
 				      <a class="ion-skip-forward"    target="action" href="/api/bose/<%= bose.mac %>/key/NEXT_TRACK" style="<%= (bose.powerOn && bose.playing.skipEnabled        ) ? '' : 'visibility: hidden' %>"></a>
 			      </div>
 			      <div class="buttons-container" style="<%= (bose.powerOn && bose.playing.favoriteEnabled) ? '' : 'visibility: hidden;' %>">
@@ -41,14 +41,18 @@
 			      <% if (('art' in bose.playing) && bose.playing.art ) { %>
 			      <img class="art" src="<%= bose.playing.art %>"/>
 			      <div id="favorite" class="ion-heart" style="<%= bose.playing.isFavorite ? '' : 'display: none;' %>"></div>
+			      <img id="spotify"  src="spotify.svg" style="<%= bose.source == 'SPOTIFY' ? '' : 'display: none;' %>"></img>
+			      <% } else { %>
+			      <img class="art" src="bose.svg"/>
 			      <% } %>
+				
 		      </div>
 
 	      </div>
 
 	      <div class="description">
 		      <% if (('art' in bose.playing) && bose.playing.art ) { %>
-		      <div class="text-crop ion-music-note"> <%= bose.playing.track ? bose.playing.track : bose.playing.stationName %></div>
+		      <div class="text-crop <%= bose.playing.stationName ? 'ion-radio-waves' : 'ion-music-note' %>"> <%= bose.playing.track ? bose.playing.track : bose.playing.stationName %></div>
 		      <div class="text-crop ion-person" style="<%= bose.playing.artist ? '' : 'visibility: hidden;' %>"> <%= bose.playing.artist %></div>
 		      <% } else { %>
 		      <div class="text-crop"><br/></div>
@@ -67,7 +71,7 @@
 
 	      <div style="<%= bose.powerOn ? '' : 'visibility: hidden;' %>">
 			<div class="volume-container">
-			<div class="p33 text-crop">volume</div>
+			<div class="p33"><span class="text-crop ion-volume-high fake-button"> volume</span></div>
 			<div class="p66"><input class="volume" data-mac="<%= bose.mac %>" type="range" min="1" max="100" value="<%= bose.volume.current %>" ></input><span>?</span></div>
 			</div>
 	      <% for (var j=0; j < boses.length; j++) {
@@ -76,12 +80,12 @@
 			if ( bose.zone.slaves.indexOf( slave.mac ) == -1 ) {
 		      %>
 			<div class="volume-container">
-			<div class="p33 text-crop"><a class="ion-toggle"        target="action" href="/api/bose/<%= bose.mac %>/group/<%= slave.mac %>"><%= slave.name %></a></div>
+			<div class="p33 text-crop"><a class="ion-toggle"        target="action" href="/api/bose/<%= bose.mac %>/group/<%= slave.mac %>"> <%= slave.name %></a></div>
 			<div class="p66"><input data-mac="<%= slave.mac %>" class="volume" type="range" min="1" max="100" value="<%= slave.volume.current %>" disabled=disabled /><span>?</span></div>
 			</div>
 		      <% } else { %>
 			<div class="volume-container">
-			<div class="p33 text-crop"><a class="ion-toggle-filled" target="action" href="/api/bose/<%= bose.mac %>/ungroup/<%= slave.mac %>"><%= slave.name %></a></div>
+			<div class="p33 text-crop"><a class="ion-toggle-filled" target="action" href="/api/bose/<%= bose.mac %>/ungroup/<%= slave.mac %>"> <%= slave.name %></a></div>
 			<div class="p66"><input data-mac="<%= slave.mac %>" class="volume" type="range" min="1" max="100" value="<%= slave.volume.current %>" /><span>?</span></div>
 			</div>
 			<% } } %>
