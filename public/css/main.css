@@ -1,21 +1,175 @@
-.container {
-	width: 100%;
-}
-fieldset {
-	float: left;
-	width: 90%;
-	max-width: 500px;
-	min-height: 350px;
-}
-.clear {  
-	clear: both;
-}
-.art {
-	width: 50%;
-	float: right;
-}	
-.buttons {
-	font-size: 30px;
-	float: left;
+:root {
+	--card-background: white;
+	--background: #484848;
+	--text: black;
+
+	--button-active: red;
+	--button-background: #f8f8f8;
+	--button-hover: #e8e8e8;
 }
 
+/*
+:root {
+	--card-background: black;
+	--background: #484848;
+	--text: white;
+
+	--button-active: red;
+	--button-background: #484848;
+	--button-hover: #686868;
+}
+*/
+html {
+	height: 100%;
+}
+
+body {
+	margin: 0px;
+	padding: 0px;
+	font-size: 14pt;
+	font-family: Verdana, Geneva, sans-serif;
+	background: var( --background);
+	color: var( --text);
+	height: 100%;
+}
+
+.container {
+	width: 100%;
+	height: 100%;
+	margin: auto;
+	text-align: center;
+}
+
+.title {
+	text-align: center;
+	border-bottom: 2px solid var( --button-hover);
+}
+.card {
+	display: inline-block;
+	text-align: left;
+	width: 90%;
+	max-width: 500px;
+	min-width: 400px;
+	margin: 2px;
+	border: solid 1px var( --button-hover);
+	border-radius: 10px;
+	background: var( --card-background);
+
+}
+
+.player {
+	width: 100%;
+	display: flex;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	align-items: center;
+	justify-content: center;
+}
+.player > div {
+	flex-basis: 49%;
+	display: flex;
+}
+
+.description {
+	text-align: center;
+	margin-top: 10px;
+	margin-bottom: 10px;
+}
+	
+.text-crop {
+	text-overflow: ellipsis;
+	/* Required for text-overflow to do anything */
+	white-space: nowrap;
+	overflow: hidden;
+}
+
+.art-container {
+	width: 100%;
+	text-align: center;
+}
+.art {
+	width: 90%;
+	height: 90%;
+	border-radius: 50%;
+	border: solid 1px var( --button-hover);
+}	
+.main-buttons {
+	flex-direction: column;
+	justify-content: center;
+        align-items: center;
+}	
+.buttons-container {
+
+	flex-grow: 1;
+
+	width: 100%;
+	display: flex;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	align-items: center;
+	justify-content: center;
+
+	padding: 2px;
+}
+.buttons-container > a {
+	margin: 2px;
+	padding: 3px;
+	font-size: 40pt;
+	flex-grow: 1;
+	text-align: center;
+}
+
+a:hover {
+	background: var( --button-hover);
+}
+
+a {
+	display: block;
+	text-decoration: none;
+	color: var( --text);;
+	border: solid 1px var( --button-hover);
+	border-radius: 10%;
+	background: var( --button-background);;
+}
+a:link, a:visited {
+	color: var( --text);
+}
+
+a:active {
+	color: var( --button-active);
+}
+
+.buttons, .bookmark {
+	font-size: 40pt;
+}
+
+.volume {
+	width: 90%;
+}
+
+.volume-container {
+	width: 100%;
+	display: flex;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	align-items: center;
+	margin-bottom: 3px;
+	margin-bottom: 3px;
+}
+
+.p33 {
+	flex-basis: 35%;
+	font-size: 11pt;
+}
+
+.p66 {
+	flex-grow: 1;
+}
+
+iframe {
+	position: fixed;
+	width: 0px;
+	height: 0px;
+	border 0;
+	border: none;
+}
