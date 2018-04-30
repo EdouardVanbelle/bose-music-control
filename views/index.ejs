@@ -32,14 +32,15 @@
 				      <a class="ion-play"            target="action" href="/api/bose/<%= bose.mac %>/key/PLAY_PAUSE"></a>
 				      <a class="ion-skip-forward"    target="action" href="/api/bose/<%= bose.mac %>/key/NEXT_TRACK" style="<%= (bose.powerOn && bose.playing.skipEnabled        ) ? '' : 'visibility: hidden' %>"></a>
 			      </div>
-			      <div class="buttons-container" style="<%= (bose.powerOn && bose.playing.favoriteCapable) ? '' : 'visibility: hidden;' %>">
-				      <a class="ion-thumbsup"        target="action" href="/api/bose/<%= bose.mac %>/key/THUMBS_UP"></a>
+			      <div class="buttons-container" style="<%= (bose.powerOn && bose.playing.favoriteEnabled) ? '' : 'visibility: hidden;' %>">
+				      <a class="ion-thumbsup"        target="action" href="/api/bose/<%= bose.mac %>/key/THUMBS_UP" style="<%= bose.playing.isFavorite ? 'color: green;' : '' %>"></a>
 				      <a class="ion-thumbsdown"      target="action" href="/api/bose/<%= bose.mac %>/key/THUMBS_DOWN"></a>
 			      </div>
 		      </div>
 		      <div class="art-container">
 			      <% if (('art' in bose.playing) && bose.playing.art ) { %>
 			      <img class="art" src="<%= bose.playing.art %>"/>
+			      <div id="favorite" class="ion-heart" style="<%= bose.playing.isFavorite ? '' : 'display: none;' %>"></div>
 			      <% } %>
 		      </div>
 
@@ -48,7 +49,7 @@
 	      <div class="description">
 		      <% if (('art' in bose.playing) && bose.playing.art ) { %>
 		      <div class="text-crop ion-music-note"> <%= bose.playing.track ? bose.playing.track : bose.playing.stationName %></div>
-		      <div class="text-crop ion-person"> <%= bose.playing.artist %></div>
+		      <div class="text-crop ion-person" style="<%= bose.playing.artist ? '' : 'visibility: hidden;' %>"> <%= bose.playing.artist %></div>
 		      <% } else { %>
 		      <div class="text-crop"><br/></div>
 		      <div class="text-crop"><br/></div>
