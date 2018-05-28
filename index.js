@@ -99,6 +99,42 @@ app.get("/api/bose/:bose/sync", (req, res) => {
   res.json( bose.sync() );
 });
 
+app.get("/api/bose/:bose/spotify/:track", (req, res) => {
+
+  var bose = BoseSoundTouch.lookup( req.params.bose);
+  if (!bose) {
+    res.status(400).json( { message: "not found" })
+    return
+  }
+
+  bose.selectSpotify( req.params.track, null, function( err, success) {
+    if( err) {
+    	res.status(400).json( { message: err })
+    }
+    else {
+    	res.json( success);
+    }
+  } );
+});
+
+app.get("/api/bose/:bose/radio/:id", (req, res) => {
+
+  var bose = BoseSoundTouch.lookup( req.params.bose);
+  if (!bose) {
+    res.status(400).json( { message: "not found" })
+    return
+  }
+
+  bose.selectRadio( req.params.id, function( err, success) {
+    if( err) {
+    	res.status(400).json( { message: err })
+    }
+    else {
+    	res.json( success);
+    }
+  } );
+});
+
 
 app.get("/api/bose/:bose/key/:key", (req, res) => {
 
