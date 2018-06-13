@@ -11,6 +11,7 @@ const Denon          = require('./lib/denon-avr');
 const app = express();
 
 app.set('view engine', 'ejs')
+app.set('json spaces', ' ');
 app.use(express.static('public'));
 
 var denon = new Denon( process.env.DENON_ADDRESS);

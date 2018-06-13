@@ -16,6 +16,8 @@
 	var bose = boses[i];
         if ( bose.zone.isSlave)
 		continue;
+	if ( bose.powerOn === null)
+		continue;
     %>
       <div class="card">
 	      <div class="title" title="<%= JSON.stringify( bose, null, 2) %>" ><%= bose.name + ( bose.zone.isMaster ? " Group" : "" ) %></div>
@@ -61,12 +63,12 @@
 	      </div>
 
 	      <div class="buttons-container ion-bookmarks">
-		      <a target="action" href="/api/bose/<%= bose.mac %>/key/PRESET_1">1</a>
-		      <a target="action" href="/api/bose/<%= bose.mac %>/key/PRESET_2">2</a>
-		      <a target="action" href="/api/bose/<%= bose.mac %>/key/PRESET_3">3</a>
-		      <a target="action" href="/api/bose/<%= bose.mac %>/key/PRESET_4">4</a>
-		      <a target="action" href="/api/bose/<%= bose.mac %>/key/PRESET_5">5</a>
-		      <a target="action" href="/api/bose/<%= bose.mac %>/key/PRESET_6">6</a>
+		      <a target="action" href="/api/bose/<%= bose.mac %>/key/PRESET_1" title="<%= bose.presets['1'].name %>">1</a>
+		      <a target="action" href="/api/bose/<%= bose.mac %>/key/PRESET_2" title="<%= bose.presets['2'].name %>">2</a>
+		      <a target="action" href="/api/bose/<%= bose.mac %>/key/PRESET_3" title="<%= bose.presets['3'].name %>">3</a>
+		      <a target="action" href="/api/bose/<%= bose.mac %>/key/PRESET_4" title="<%= bose.presets['4'].name %>">4</a>
+		      <a target="action" href="/api/bose/<%= bose.mac %>/key/PRESET_5" title="<%= bose.presets['5'].name %>">5</a>
+		      <a target="action" href="/api/bose/<%= bose.mac %>/key/PRESET_6" title="<%= bose.presets['6'].name %>">6</a>
 	      </div>
 
 	      <div style="<%= bose.powerOn ? '' : 'visibility: hidden;' %>">
