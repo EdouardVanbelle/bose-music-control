@@ -69,7 +69,7 @@ app.get("/api/bose/:bose/notify", (req, res) => {
   });
 });
 
-app.get("/api/bose/:bose/play", (req, res) => {
+app.get("/api/bose/:bose/play_url", (req, res) => {
 
   var bose = BoseSoundTouch.lookup( req.params.bose);
   if (!bose) {
@@ -77,7 +77,8 @@ app.get("/api/bose/:bose/play", (req, res) => {
     return
   }
 
-  bose.play_url( process.env.NOTIF_URL, function( err, success) {
+  var url = 'http://ia600604.us.archive.org/6/items/jamendo-007505/01.mp3';
+  bose.play_url( url, null, function( err, success) {
     if( err) {
     	res.status(400).json( err);
     }
