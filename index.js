@@ -7,6 +7,7 @@ const bonjour = require('bonjour')()
 
 const BoseSoundTouch = require('./lib/bosesoundtouch');
 const Denon          = require('./lib/denon-avr');
+const fs 	     = require('fs');
 
 const app = express();
 
@@ -14,6 +15,16 @@ app.set('view engine', 'ejs')
 app.set('json spaces', ' ');
 app.use(express.static('public'));
 
+//default values by security
+var defaultConfig = {
+	'enabled': false,
+	"volume": 50,
+	"begin": "00:00",
+	"end": "23:59",
+	"message":"knock knock"
+};
+
+var globalConfig = JSON.parse(fs.readFileSync('config.json', 'utf8'));
 var denon = new Denon( process.env.DENON_ADDRESS);
 
 app.get('/', function (req, res) {
@@ -41,32 +52,59 @@ app.get("/api/bose/:bose", (req, res) => {
   res.json( bose );
 });
 
+function notify( bose) {
+	var config = Object.assign( defaultConfig);
+	if( '__default' in globalConfig.notify) {
+		config = Object.assign( config, globalConfig.notify.__default);
+	}
+	if( bose.name in globalConfig.notify) {
+		config = Object.assign( config, globalConfig.notify[bose.name]);
+	}
+
+	if( !config.enabled) {
+		console.log( bose+" notify: disabled");
+		return false;
+	}
+
+  	var now = new Date().toTimeString().replace( /^(..:..).*/, "$1"); //keep only hh:mm in local timezone
+
+	if( (now < config.begin) || (now > config.end)) {
+		console.log( bose+" notify: is mute at this time: "+now);
+		return false;
+	}
+	
+	console.log( bose+" notify: enabled with url: "+config.url+" volume: "+config.volume);
+	var answer = {};
+
+	bose.notify( process.env.NOTIF_KEY, config.url, config.volume, config.message, function( err, success){} );
+
+	return true;;
+
+}
+
 app.get("/api/bose/:bose/notify", (req, res) => {
 
+  var answers = {};
+
   if ( req.params.bose == "ALL") {
-    var boses = BoseSoundTouch.registered();
-    for ( var i=0; i < boses.length; i++) {
-        //console.log( bose+" "+bose);
-	boses[i].notify( process.env.NOTIF_KEY, process.env.NOTIF_URL, function( err, success){} );
-    }
-    res.json( {});
-    return;
+	  var boses = BoseSoundTouch.registered();
+	  for ( var i=0; i < boses.length; i++) {
+		answers[ boses[i].name ] = notify( boses[i]);
+	  }
+	  res.json( answers);
+	  return;
+  }
+  else {
+	  var bose = BoseSoundTouch.lookup( req.params.bose);
+	  if (!bose) {
+	    res.status(400).json( { message: "not found" })
+	    return
+	  }
+
+	  answers[ bose.name ] = notify( bose);
   }
 
-  var bose = BoseSoundTouch.lookup( req.params.bose);
-  if (!bose) {
-    res.status(400).json( { message: "not found" })
-    return
-  }
-
-  bose.notify( process.env.NOTIF_KEY, process.env.NOTIF_URL, function( err, success) {
-    if( err) {
-    	res.status(400).json( err);
-    }
-    else {
-    	res.json( success);
-    }
-  });
+  res.json( answers);
 });
 
 app.get("/api/bose/:bose/play_url", (req, res) => {
@@ -77,7 +115,9 @@ app.get("/api/bose/:bose/play_url", (req, res) => {
     return
   }
 
-  var url = 'http://ia600604.us.archive.org/6/items/jamendo-007505/01.mp3';
+  //var url = 'http://ia600604.us.archive.org/6/items/jamendo-007505/01.mp3';
+  //var url = 'http://ice1.somafm.com/groovesalad-128-mp3';
+  var url = 'http://192.168.2.168:2000/deejay.mp3';
   bose.play_url( url, null, function( err, success) {
     if( err) {
     	res.status(400).json( err);

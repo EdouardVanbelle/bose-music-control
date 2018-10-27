@@ -1,0 +1,31 @@
+{
+	"notify": {
+		"__default":{
+			"enabled": true,
+			"volume": 60,
+			"begin": "00:00",
+			"end": "23:59",
+			"message":"knock knock",
+			"url": "http://192.168.2.168:3000/sound/doorbell.mp3"
+		},
+		"Bose-Cuisine": {
+			"volume": 50,
+			"url": "http://192.168.2.168:3000/sound/Romagna-mia.mp3"
+		},
+		"Bose-Salon-Rdc": {
+			"enabled": false
+		},
+		"Bose-Grenier": {
+			"begin": "08:00",
+			"end": "20:00"
+		},
+		"Bose-Veranda": {
+			"begin": "08:00",
+			"end": "20:00"
+		},
+		"Bose-Bureau": {
+			"begin": "07:00",
+			"end": "23:00"
+		}
+	}
+}

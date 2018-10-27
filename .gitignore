@@ -2,4 +2,3 @@ node_modules/
 *.swp
 .env
 package-lock.json
-ionicons-2.0.1/
