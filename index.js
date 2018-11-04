@@ -52,44 +52,64 @@ app.get("/api/bose/:bose", (req, res) => {
   res.json( bose );
 });
 
-function notify( bose) {
+function notify( bose, evname) {
 	var config = Object.assign( defaultConfig);
-	if( '__default' in globalConfig.notify) {
-		config = Object.assign( config, globalConfig.notify.__default);
+	if( !( evname in globalConfig.notify)) {
+		console.log( bose+" unknown notify "+evname);
+		return false;
 	}
-	if( bose.name in globalConfig.notify) {
-		config = Object.assign( config, globalConfig.notify[bose.name]);
+
+	if( '__default' in globalConfig.notify[evname]) {
+		config = Object.assign( config, globalConfig.notify[evname].__default);
+	}
+	if( bose.name in globalConfig.notify[evname]) {
+		config = Object.assign( config, globalConfig.notify[evname][bose.name]);
 	}
 
 	if( !config.enabled) {
-		console.log( bose+" notify: disabled");
+		console.log( bose+" notify "+evname+": disabled");
 		return false;
 	}
 
   	var now = new Date().toTimeString().replace( /^(..:..).*/, "$1"); //keep only hh:mm in local timezone
 
 	if( (now < config.begin) || (now > config.end)) {
-		console.log( bose+" notify: is mute at this time: "+now);
+		console.log( bose+" notify "+evname+": is mute at this time: "+now);
 		return false;
 	}
 	
-	console.log( bose+" notify: enabled with url: "+config.url+" volume: "+config.volume);
+	console.log( bose+" notify "+evname+": enabled with url: "+config.url+" volume: "+config.volume);
 	var answer = {};
 
 	bose.notify( process.env.NOTIF_KEY, config.url, config.volume, config.message, function( err, success){} );
 
-	return true;;
+	return true;
 
 }
 
+/* dump config */
+app.get("/api/config", (req, res) => {
+  res.json( globalConfig);
+} );
+
+
+/* kept for compatibility */
 app.get("/api/bose/:bose/notify", (req, res) => {
+	req.params.evname = "default"; 
+	fire( req, res);
+} );
+
+app.get("/api/bose/:bose/notify/:evname", fire);
+	
+function fire( req, res) {
 
   var answers = {};
+  var evname = req.params.evname;
 
   if ( req.params.bose == "ALL") {
 	  var boses = BoseSoundTouch.registered();
 	  for ( var i=0; i < boses.length; i++) {
-		answers[ boses[i].name ] = notify( boses[i]);
+		answers[ boses[i].name ] = notify( boses[i], evname);
 	  }
 	  res.json( answers);
 	  return;
@@ -101,11 +121,11 @@ app.get("/api/bose/:bose/notify", (req, res) => {
 	    return
 	  }
 
-	  answers[ bose.name ] = notify( bose);
+	  answers[ bose.name ] = notify( bose, evname);
   }
 
   res.json( answers);
-});
+}
 
 app.get("/api/bose/:bose/play_url", (req, res) => {
 

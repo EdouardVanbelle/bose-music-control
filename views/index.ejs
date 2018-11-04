@@ -12,6 +12,28 @@
   <body>
     <iframe src="about:blank" name="action" id="actionFrm"></iframe>
     <div class="container">
+
+    <div class="card">
+	<div class="title">shortcut</div>
+        <div class="player">
+	  <div class="main-buttons" >
+            <div class="buttons-container">
+	      <a class="ion-ios-color-wand" target="action" href="/api/bose/ALL/notify/default"> knock</a>
+            </div>
+            <div class="buttons-container">
+	      <a class="ion-ios-color-wand" target="action" href="/api/bose/ALL/notify/diner"> diner</a>
+            </div>
+            <div class="buttons-container">
+	      <a class="ion-ios-color-wand" target="action" href="/api/bose/ALL/notify/down"> down</a>
+            </div>
+          </div>
+        </div>
+	<div class="description">&nbsp;
+        </div>
+        <div>
+	</div>
+    </div>
+
     <% for (var i=0; i < boses.length; i++) { 
 	var bose = boses[i];
         if ( bose.zone.isSlave)
