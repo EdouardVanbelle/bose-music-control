@@ -18,13 +18,14 @@
 		"down": {
 			"__default":{
 				"enabled": true,
-				"volume": 70,
+				"volume": 60,
 				"begin": "00:00",
 				"end": "23:59",
 				"message":"al tavolo",
 				"url": "http://192.168.2.168:3000/sound/scendete-subito.mp3"
 			},
 			"Bose-Cuisine": {
+				"enabled": false
 			},
 			"Bose-Salon-Rdc": {
 				"enabled": false
@@ -37,7 +38,7 @@
 				"begin": "00:00",
 				"end": "23:59",
 				"message":"knock knock",
-				"url": "http://192.168.2.168:3000/sound/doorbell.mp3"
+				"url": "http://192.168.2.168:3000/sound/doorbell-suona-alla-porta.mp3"
 			},
 			"Bose-Cuisine": {
 				"volume": 50,
@@ -47,6 +48,7 @@
 				"enabled": false
 			},
 			"Bose-Grenier": {
+				"volume": 45,
 				"begin": "08:00",
 				"end": "20:00"
 			},

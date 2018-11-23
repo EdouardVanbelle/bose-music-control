@@ -18,13 +18,13 @@
         <div class="player">
 	  <div class="main-buttons" >
             <div class="buttons-container">
-	      <a class="ion-ios-color-wand" target="action" href="/api/bose/ALL/notify/default"> knock</a>
+	      <a class="ion-android-notifications-none" target="action" href="/api/bose/ALL/notify/default"> knock</a>
             </div>
             <div class="buttons-container">
-	      <a class="ion-ios-color-wand" target="action" href="/api/bose/ALL/notify/diner"> diner</a>
+	      <a class="ion-android-notifications-none" target="action" href="/api/bose/ALL/notify/diner"> diner</a>
             </div>
             <div class="buttons-container">
-	      <a class="ion-ios-color-wand" target="action" href="/api/bose/ALL/notify/down"> down</a>
+	      <a class="ion-android-notifications-none" target="action" href="/api/bose/ALL/notify/down"> down</a>
             </div>
           </div>
         </div>
@@ -34,8 +34,8 @@
 	</div>
     </div>
 
-    <% for (var i=0; i < boses.length; i++) { 
-	var bose = boses[i];
+    <% for (var boseindex=0; boseindex < boses.length; boseindex++) { 
+	var bose = boses[boseindex];
         if ( bose.zone.isSlave)
 		continue;
 	if ( bose.powerOn === null)
@@ -85,12 +85,11 @@
 	      </div>
 
 	      <div class="buttons-container ion-bookmarks">
-		      <a target="action" href="/api/bose/<%= bose.mac %>/key/PRESET_1" title="<%= bose.presets['1'].name %>">1</a>
-		      <a target="action" href="/api/bose/<%= bose.mac %>/key/PRESET_2" title="<%= bose.presets['2'].name %>">2</a>
-		      <a target="action" href="/api/bose/<%= bose.mac %>/key/PRESET_3" title="<%= bose.presets['3'].name %>">3</a>
-		      <a target="action" href="/api/bose/<%= bose.mac %>/key/PRESET_4" title="<%= bose.presets['4'].name %>">4</a>
-		      <a target="action" href="/api/bose/<%= bose.mac %>/key/PRESET_5" title="<%= bose.presets['5'].name %>">5</a>
-		      <a target="action" href="/api/bose/<%= bose.mac %>/key/PRESET_6" title="<%= bose.presets['6'].name %>">6</a>
+		  <% for (var i=1; i <= 6; i++) {
+			if( bose.presets[i] != null) {
+				%><a target="action" <% if( ! bose.presets[i].enabled) { %>disabled="disabled"<% } %> href="/api/bose/<%= bose.mac %>/key/PRESET_<%= i %>" title="<%= bose.presets[i].name %>"><%= i %></a><% 
+			} 
+		  } %>
 	      </div>
 
 	      <div style="<%= bose.powerOn ? '' : 'visibility: hidden;' %>">

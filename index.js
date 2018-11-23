@@ -88,6 +88,13 @@ function notify( bose, evname) {
 }
 
 /* dump config */
+app.get("/ping", (req, res) => {
+  console.log("ping from "+req.connection.remoteAddress)
+  res.json( {});
+} );
+
+
+/* dump config */
 app.get("/api/config", (req, res) => {
   res.json( globalConfig);
 } );
@@ -425,8 +432,15 @@ soundtouch.on("up", function (service) {
 
 
   // format:{"Bose-Salon-Rdc":{"addresses":["192.168.2.246"],"txt":{"description":"SoundTouch","mac":"04A316E14903","manufacturer":"Bose Corporation","model":"SoundTouch"},"name":"Bose-Salon-Rdc","fqdn":"Bose-Salon-Rdc._soundtouch._tcp.local","host":"binky-1436213703.local","referer":{"address":"192.168.2.246","family":"IPv4","port":5353,"size":215},"port":8090,"type":"soundtouch","protocol":"tcp","subtypes":[]}
-	//
-  var bose = new BoseSoundTouch( service.name, service.addresses[0], service.txt.mac, service.txt.model, service.port);
+
+  var ip = service.addresses[0]
+
+  if( ip == null) {
+  	console.log("Warning: no ip found from mDNS on service "+service.name+", using fallback");
+	ip = service.referer.address
+  }
+
+  var bose = new BoseSoundTouch( service.name, ip, service.txt.mac, service.txt.model, service.port);
 
   var previous = BoseSoundTouch.lookup( bose.mac);
   if( previous) {
