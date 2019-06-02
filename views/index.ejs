@@ -26,6 +26,9 @@
             <div class="buttons-container">
 	      <a class="ion-android-notifications-none" target="action" href="/api/bose/ALL/notify/down"> down</a>
             </div>
+            <div class="buttons-container">
+	      <a class="ion-android-notifications-none" target="action" href="/api/bose/ALL/notify/shut"> shut</a>
+            </div>
           </div>
         </div>
 	<div class="description">&nbsp;
@@ -34,14 +37,17 @@
 	</div>
     </div>
 
-    <% for (var boseindex=0; boseindex < boses.length; boseindex++) { 
+    <% 
+
+      for (var boseindex=0; boseindex < boses.length; boseindex++) { 
 	var bose = boses[boseindex];
         if ( bose.zone.isSlave)
 		continue;
 	if ( bose.powerOn === null)
 		continue;
     %>
-      <div class="card">
+    
+    <div class="card">
 	      <div class="title" title="<%= JSON.stringify( bose, null, 2) %>" ><%= bose.name + ( bose.zone.isMaster ? " Group" : "" ) %></div>
 
 	      <div class="player">
@@ -75,7 +81,7 @@
 	      </div>
 
 	      <div class="description">
-		      <% if (('art' in bose.playing) && bose.playing.art ) { %>
+		      <% if (bose.playing.track || bose.playing.stationName ) { %>
 		      <div class="text-crop <%= bose.playing.stationName ? 'ion-radio-waves' : 'ion-music-note' %>"> <%= bose.playing.track ? bose.playing.track : bose.playing.stationName %></div>
 		      <div class="text-crop ion-person" style="<%= bose.playing.artist ? '' : 'visibility: hidden;' %>"> <%= bose.playing.artist %></div>
 		      <% } else { %>
@@ -84,12 +90,24 @@
 		      <% } %>
 	      </div>
 
-	      <div class="buttons-container ion-bookmarks">
+	      <div class="buttons-container ion-bookmarks preset">
 		  <% for (var i=1; i <= 6; i++) {
 			if( bose.presets[i] != null) {
-				%><a target="action" <% if( ! bose.presets[i].enabled) { %>disabled="disabled"<% } %> href="/api/bose/<%= bose.mac %>/key/PRESET_<%= i %>" title="<%= bose.presets[i].name %>"><%= i %></a><% 
+				%><a target="action" <% if( ! bose.presets[i].enabled) { %>disabled="disabled"<% } %> 
+	                             href="/api/bose/<%= bose.mac %>/key/PRESET_<%= i %>" 
+			             title="<%= bose.presets[i].name %>"
+				     <% if ( ('art' in bose.presets[i]) && bose.presets[i].art ) { %>
+				     style="background-image: url(<%= bose.presets[i].art %>);"
+				     <% } %>
+		                     ><%= i %></a><% 
 			} 
 		  } %>
+	      </div>
+	      <div class="buttons-container ion-bookmarks">
+		      <div>Euronews</div>
+		<a target="action" href="/api/bose/<%= bose.mac %>/play_url/http%3A%2F%2Fpodcasts.euronewsradio.com%2Fmedia%2Fpodcast%2FEuronewsFR-News.mp3" title="Euronews">FR</a> 
+		<a target="action" href="/api/bose/<%= bose.mac %>/play_url/http%3A%2F%2Fpodcasts.euronewsradio.com%2Fmedia%2Fpodcast%2FEuronewsIT-News.mp3" title="Euronews">IT</a> 
+		<a target="action" href="/api/bose/<%= bose.mac %>/play_url/http%3A%2F%2Fpodcasts.euronewsradio.com%2Fmedia%2Fpodcast%2FEuronewsEN-News.mp3" title="Euronews">EN</a> 
 	      </div>
 
 	      <div style="<%= bose.powerOn ? '' : 'visibility: hidden;' %>">
@@ -98,7 +116,7 @@
 			<div class="p66"><input class="volume" data-mac="<%= bose.mac %>" type="range" min="1" max="100" value="<%= bose.volume.current %>" ></input><span>?</span></div>
 			</div>
 	      <% for (var j=0; j < boses.length; j++) {
-			if (i==j) continue;
+			if (boseindex==j) continue;
 			var slave = boses[j];
 			if ( bose.zone.slaves.indexOf( slave.mac ) == -1 ) {
 		      %>
@@ -112,6 +130,18 @@
 			<div class="p66"><input data-mac="<%= slave.mac %>" class="volume" type="range" min="1" max="100" value="<%= slave.volume.current %>" /><span>?</span></div>
 			</div>
 			<% } } %>
+	      </div>
+
+	      <div class="buttons-hack">
+		      <div>
+			      <span title="ap">AP: <%= config['access-points'][ bose.stationStats.bssid ] %></span>
+			      <%= bose.wifiSignal.replace( /_SIGNAL/, "") %>
+			      <span title="rssi"><%= bose.stationStats.rssi_dBm %> dBm</span>
+			      <span title="speed"><%= bose.stationStats.linkSpeed_Mbps %> Mbps</span>
+		      </div>
+		      <a href="/api/bose/<%= bose.mac %>">API details</a>
+		      <a target="action" href="/api/bose/<%= bose.mac %>/sync">sync</a>
+		      <a target="action" href="/api/bose/<%= bose.mac %>/reboot" onclick="return confirm('sure ?');">reboot</a>
 	      </div>
       </div>
     <% } %>

@@ -6,6 +6,9 @@
 	--button-active: red;
 	--button-background: #f8f8f8;
 	--button-hover: #e8e8e8;
+
+	--color-button-background: #e8e8e8;
+	--color-button-hover: #d8d8d8;
 }
 
 /*
@@ -45,11 +48,13 @@ body {
 	border-bottom: 2px solid var( --button-hover);
 }
 .card {
-	display: inline-block;
+	display: inline-table;
+	min-height: 610px;
 	text-align: left;
 	width: 90%;
 	max-width: 500px;
 	min-width: 400px;
+
 	margin: 2px;
 	border: solid 1px var( --button-hover);
 	border-radius: 10px;
@@ -83,7 +88,7 @@ body {
 }
 
 .art-container {
-	width: 100%;
+	width: 99%;
 	text-align: center;
 	position: relative;
 }
@@ -119,7 +124,8 @@ body {
 	justify-content: center;
         align-items: center;
 }	
-.buttons-container {
+
+.buttons-container, .buttons-hack {
 
 	flex-grow: 1;
 
@@ -134,10 +140,24 @@ body {
 }
 .buttons-container > a {
 	margin: 2px;
-	padding: 3px;
-	font-size: 40pt;
+	padding: 2px;
+	font-size: 30pt;
 	flex-grow: 1;
 	text-align: center;
+}
+
+.buttons-hack {
+	font-size: 10pt;
+	align-items: left;
+	justify-content: left;
+}
+.buttons-hack > a {
+	font-size: 10pt;
+	margin: 2px;
+	padding: 2px;
+	flex-grow: 0;
+	text-align: center;
+
 }
 
 a:hover {
@@ -150,8 +170,9 @@ a, .fake-button {
 	color: var( --text);;
 	border: solid 1px var( --button-hover);
 	border-radius: 10%;
-	background: var( --button-background);;
+	background: var( --button-background);
 }
+
 a:link, a:visited {
 	color: var( --text);
 }
@@ -160,12 +181,28 @@ a:active {
 	color: var( --button-active);
 }
 
+.preset > a {
+	background: var( --color-button-background);
+	background-position: center center; 
+	background-repeat: no-repeat; 
+	background-size: 100%; 
+	background-blend-mode: overlay;
+}
+.preset >a:hover {
+	background: var( --color-button-hover);
+	background-blend-mode: darken;
+	background-position: center center; 
+	background-repeat: no-repeat; 
+	background-size: 100%; 
+	color: transparent;
+}
+
 .buttons, .bookmark {
-	font-size: 40pt;
+	font-size: 36pt;
 }
 
 .volume {
-	width: 90%;
+	width: 80%;
 }
 
 .volume-container {
@@ -179,7 +216,7 @@ a:active {
 }
 
 .p33 {
-	flex-basis: 35%;
+	flex-basis: 33%;
 	font-size: 11pt;
 }
 

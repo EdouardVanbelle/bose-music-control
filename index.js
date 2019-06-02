@@ -4,6 +4,7 @@ require('dotenv').config()
 
 const express = require('express');
 const bonjour = require('bonjour')()
+const request = require('request');
 
 const BoseSoundTouch = require('./lib/bosesoundtouch');
 const Denon          = require('./lib/denon-avr');
@@ -28,7 +29,7 @@ var globalConfig = JSON.parse(fs.readFileSync('config.json', 'utf8'));
 var denon = new Denon( process.env.DENON_ADDRESS);
 
 app.get('/', function (req, res) {
-   res.render('index', { title: "test", boses: BoseSoundTouch.registered() });
+   res.render('index', { title: "test", boses: BoseSoundTouch.registered(), 'config': globalConfig });
 })
 
 /*
@@ -113,6 +114,23 @@ function fire( req, res) {
   var answers = {};
   var evname = req.params.evname;
 
+  if( ( evname in globalConfig.notify) && ('__webhook' in globalConfig.notify[evname]) ) {
+	var i;
+	for( i=0; i<globalConfig.notify[evname].__webhook.length; i++) {
+		var url=globalConfig.notify[evname].__webhook[i];
+		console.log( "calling webhook: "+url);
+		request( { 'url' : url }, (err, res, body) => {
+			if( err) {
+				console.log("oops: "+err)
+				return;
+			}
+
+			console.log( body);
+		} );
+	}
+  }
+
+
   if ( req.params.bose == "ALL") {
 	  var boses = BoseSoundTouch.registered();
 	  for ( var i=0; i < boses.length; i++) {
@@ -134,7 +152,7 @@ function fire( req, res) {
   res.json( answers);
 }
 
-app.get("/api/bose/:bose/play_url", (req, res) => {
+app.get("/api/bose/:bose/play_url/:url", (req, res) => {
 
   var bose = BoseSoundTouch.lookup( req.params.bose);
   if (!bose) {
@@ -144,7 +162,8 @@ app.get("/api/bose/:bose/play_url", (req, res) => {
 
   //var url = 'http://ia600604.us.archive.org/6/items/jamendo-007505/01.mp3';
   //var url = 'http://ice1.somafm.com/groovesalad-128-mp3';
-  var url = 'http://192.168.2.168:2000/deejay.mp3';
+  //var url = 'http://192.168.2.168:2000/deejay.mp3';
+  var url = req.params.url;
   bose.play_url( url, null, function( err, success) {
     if( err) {
     	res.status(400).json( err);
@@ -184,6 +203,26 @@ app.get("/api/bose/:bose/check", (req, res) => {
 
   res.json( bose.checkWebSocket() );
 });
+
+app.get("/api/bose/:bose/reboot", (req, res) => {
+
+  var bose = BoseSoundTouch.lookup( req.params.bose);
+  if (!bose) {
+    res.status(400).json( { message: "not found" })
+    return
+  }
+
+  bose.reboot( function( err, success) {
+    if( err) {
+    	res.status(400).json( err);
+    }
+    else {
+    	res.json( success);
+    }
+  });
+
+});
+
 
 app.get("/api/bose/:bose/sync", (req, res) => {
 
