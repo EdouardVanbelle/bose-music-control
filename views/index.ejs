@@ -39,7 +39,8 @@
 
     <% 
 
-      for (var boseindex=0; boseindex < boses.length; boseindex++) { 
+      var sortedKeys = Object.keys( boses).sort( function( a, b) { return boses[a].name.localeCompare( boses[b].name) } );
+      for (var boseindex of sortedKeys) { 
 	var bose = boses[boseindex];
         if ( bose.zone.isSlave)
 		continue;
@@ -115,9 +116,9 @@
 			<div class="p33"><span class="text-crop ion-volume-high fake-button"> volume</span></div>
 			<div class="p66"><input class="volume" data-mac="<%= bose.mac %>" type="range" min="1" max="100" value="<%= bose.volume.current %>" ></input><span>?</span></div>
 			</div>
-	      <% for (var j=0; j < boses.length; j++) {
-			if (boseindex==j) continue;
-			var slave = boses[j];
+	      <% for (var slaveindex of sortedKeys) {
+			if (slaveindex == boseindex) continue;
+			var slave = boses[slaveindex];
 			if ( bose.zone.slaves.indexOf( slave.mac ) == -1 ) {
 		      %>
 			<div class="volume-container">
@@ -134,8 +135,8 @@
 
 	      <div class="buttons-hack">
 		      <div>
-			      <span title="ap">AP: <%= config['access-points'][ bose.stationStats.bssid ] %></span>
-			      <%= bose.wifiSignal.replace( /_SIGNAL/, "") %>
+			      <span title="ap">AP: <%= config['access-points'][ bose.stationStats.bssid ] || "unknown" %></span>
+			      sig: <%= bose.wifiSignal.replace( /_SIGNAL/, "") %>
 			      <span title="rssi"><%= bose.stationStats.rssi_dBm %> dBm</span>
 			      <span title="speed"><%= bose.stationStats.linkSpeed_Mbps %> Mbps</span>
 		      </div>
