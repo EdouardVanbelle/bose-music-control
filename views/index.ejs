@@ -29,6 +29,9 @@
             <div class="buttons-container">
 	      <a class="ion-android-notifications-none" target="action" href="/api/bose/ALL/notify/shut"> shut</a>
             </div>
+            <div class="buttons-container">
+	      <a class="ion-android-notifications-none" target="action" href="/api/bose/ALL/notify/dodo"> dodo</a>
+            </div>
           </div>
         </div>
 	<div class="description">&nbsp;
@@ -39,11 +42,14 @@
 
     <% 
 
-      var sortedKeys = Object.keys( boses).sort( function( a, b) { return boses[a].name.localeCompare( boses[b].name) } );
+      var sortedKeys = Object.keys( boses).sort( function( a, b) { 
+        // return non slave first, then do a name comparaison
+      	if (boses[a].zone.isSlave == boses[b].zone.isSlave) return boses[a].name.localeCompare( boses[b].name);
+        return (boses[a].zone.isSlave ? 1 : -1);
+      } );
       for (var boseindex of sortedKeys) { 
 	var bose = boses[boseindex];
-        if ( bose.zone.isSlave)
-		continue;
+        var isSlave = bose.zone.isSlave;
 	if ( bose.powerOn === null)
 		continue;
     %>
@@ -51,9 +57,9 @@
     <div class="card">
 	      <div class="title" title="<%= JSON.stringify( bose, null, 2) %>" ><%= bose.name + ( bose.zone.isMaster ? " Group" : "" ) %></div>
 
-	      <div class="player">
+	      <div class="player" style="<%= !isSlave ? '' : 'visibility: hidden;' %>">
 
-		      <div class="main-buttons" >
+		      <div class="main-buttons">
 			      <div class="buttons-container">
 				      <a class="ion-power"           target="action" href="/api/bose/<%= bose.mac %>/key/POWER" style="color: <%= bose.powerOn ? 'green' : 'black'%>"></a>
 				      <a class="ion-play"            target="action" href="/api/bose/<%= bose.mac %>/key/PLAY_PAUSE"></a>
@@ -69,7 +75,7 @@
 			      </div>
 		      </div>
 		      <div class="art-container">
-			      <% if (('art' in bose.playing) && bose.playing.art ) { %>
+			      <% if (!isSlave && ('art' in bose.playing) && bose.playing.art ) { %>
 			      <img class="art" src="<%= bose.playing.art %>"/>
 			      <div id="favorite" class="ion-heart" style="<%= bose.playing.isFavorite ? '' : 'display: none;' %>"></div>
 			      <img id="spotify"  src="spotify.svg" style="<%= bose.source == 'SPOTIFY' ? '' : 'display: none;' %>"></img>
@@ -82,7 +88,7 @@
 	      </div>
 
 	      <div class="description">
-		      <% if (bose.playing.track || bose.playing.stationName ) { %>
+		      <% if ((!isSlave) && (bose.playing.track || bose.playing.stationName )) { %>
 		      <div class="text-crop <%= bose.playing.stationName ? 'ion-radio-waves' : 'ion-music-note' %>"> <%= bose.playing.track ? bose.playing.track : bose.playing.stationName %></div>
 		      <div class="text-crop ion-person" style="<%= bose.playing.artist ? '' : 'visibility: hidden;' %>"> <%= bose.playing.artist %></div>
 		      <% } else { %>
@@ -91,7 +97,7 @@
 		      <% } %>
 	      </div>
 
-	      <div class="buttons-container ion-bookmarks preset">
+	      <div class="buttons-container ion-bookmarks preset" style="<%= !isSlave ? '' : 'visibility: hidden;' %>">
 		  <% for (var i=1; i <= 6; i++) {
 			if( bose.presets[i] != null) {
 				%><a target="action" <% if( ! bose.presets[i].enabled) { %>disabled="disabled"<% } %> 
@@ -104,14 +110,14 @@
 			} 
 		  } %>
 	      </div>
-	      <div class="buttons-container ion-bookmarks">
+	      <div class="buttons-container ion-bookmarks" style="<%= !isSlave ? '' : 'visibility: hidden;' %>">
 		      <div>Euronews</div>
 		<a target="action" href="/api/bose/<%= bose.mac %>/play_url/http%3A%2F%2Fpodcasts.euronewsradio.com%2Fmedia%2Fpodcast%2FEuronewsFR-News.mp3" title="Euronews">FR</a> 
 		<a target="action" href="/api/bose/<%= bose.mac %>/play_url/http%3A%2F%2Fpodcasts.euronewsradio.com%2Fmedia%2Fpodcast%2FEuronewsIT-News.mp3" title="Euronews">IT</a> 
 		<a target="action" href="/api/bose/<%= bose.mac %>/play_url/http%3A%2F%2Fpodcasts.euronewsradio.com%2Fmedia%2Fpodcast%2FEuronewsEN-News.mp3" title="Euronews">EN</a> 
 	      </div>
 
-	      <div style="<%= bose.powerOn ? '' : 'visibility: hidden;' %>">
+	      <div style="<%= ( bose.powerOn && ! isSlave ) ? '' : 'visibility: hidden;' %>">
 			<div class="volume-container">
 			<div class="p33"><span class="text-crop ion-volume-high fake-button"> volume</span></div>
 			<div class="p66"><input class="volume" data-mac="<%= bose.mac %>" type="range" min="1" max="100" value="<%= bose.volume.current %>" ></input><span>?</span></div>

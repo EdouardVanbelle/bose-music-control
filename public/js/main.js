@@ -3,8 +3,8 @@
   '_events': {},
   '_eventsCount': 1,
   'name': 'Bose-Salon-Rdc',
-  'ip': '192.168.2.246',
-  'mac': '04A316E14903',
+  'ip': '192.168......',
+  'mac': '04A31....',
   'model': 'SoundTouch',
   'port': 8090,
   'info': null,
@@ -28,9 +28,9 @@
     'isMaster': true,
     'isStandalone': false,
     'slaves': [
-      'A0F6FD3D536C'
+      'A0F6FD3....'
     ],
-    'master': '04A316E14903'
+    'master': '04A31.....'
   },
   'volume': {
     'current': '20',
@@ -41,7 +41,12 @@
 
 ( function($) {
 
+
    $(document).ready( () => {
+
+   	//$("#actionFrm").on( "load", () => {
+	//   alert( "loaded: "+$("#actionFrm").attr('src'));
+   	//});
 
 	$('.volume').each( (index, value ) => {
 

@@ -10,6 +10,9 @@ const BoseSoundTouch = require('./lib/bosesoundtouch');
 const Denon          = require('./lib/denon-avr');
 const fs 	     = require('fs');
 
+const GCastClient                = require('castv2-client').Client;
+const GCastDefaultMediaReceiver  = require('castv2-client').DefaultMediaReceiver;
+
 const app = express();
 
 app.set('view engine', 'ejs')
@@ -435,7 +438,7 @@ function syncDenonOnBoseSalonRdcPowerChange( bose)
 	
         console.log( bose+" powered: "+ bose.powerOn);
 
-	if( bose.powerOn)
+	if( bose.powerOn && bose.source != "UPDATE")
         {
 	  denon.call( ["Z2?"], function( err, answers) {
             if (err) { return console.log( err) }
@@ -466,6 +469,48 @@ function syncDenonOnBoseSalonRdcPowerChange( bose)
 
 // browse for all http services
 var soundtouch = bonjour.find({ type: 'soundtouch' });
+
+var chromecast = bonjour.find({ type: 'googlecast' });
+
+chromecast.on("up", function( service) {
+	var ip = service.addresses[0];
+
+	console.log("googlecast:");
+	//console.log( service);
+	console.log( service.txt.md);
+	console.log( service.txt.fn);
+	console.log( ip);
+
+	if( service.txt.fn != "Mini") {
+		return;
+	}
+
+		return;
+	console.log( "request for "+service.txt.fn);
+
+	var client = new GCastClient();
+	client.connect( ip, function() {
+	       client.launch(GCastDefaultMediaReceiver, function(err, player) {
+		        var media = {
+				// Here you can plug an URL to any mp4, webm, mp3 or jpg file with the proper contentType.
+				contentId: 'http://192.168.2.2:3000/sound/doorbell-suona-alla-porta.mp3',
+				contentType: 'audio/mp3',
+				streamType: 'BUFFERED', // or LIVE
+		        };
+			
+			player.on('status', function(status) {
+				console.log('status broadcast playerState=%s', status.playerState);
+			});
+
+			player.load(media, { autoplay: true }, function(err, status) {
+				console.log('media loaded playerState=%s', status);
+			});
+		} );
+	});
+
+
+
+});
 
 soundtouch.on("up", function (service) {
 
