@@ -1,0 +1,107 @@
+{
+	"access-points": {
+              "b0:7f:b9:..:..:.." : "2floor",
+              "b0:7f:b9:..:..:.." : "2floor5G",
+              "18:d6:c7:..:..:.." : "lounge",
+              "18:d6:c7:..:..:.." : "lounge5G",
+	      "3c:37:86:..:..:.." : "ground",
+	      "3c:37:86:..:..:.." : "ground5G"
+	},
+	"notify": {
+		"diner": {
+			"__default":{
+				"enabled": true,
+				"volume": 60,
+				"begin": "00:00",
+				"end": "23:59",
+				"message":"al tavolo",
+				"url": "http://nuc.lan:3000/sound/ding-ding-al-tavolo.mp3"
+			},
+			"Bose-Cuisine": {
+			},
+			"Bose-Salon-Rdc": {
+				"enabled": false
+			}
+		},
+		"shut": {
+			"__default":{
+				"enabled": true,
+				"volume": 60,
+				"begin": "00:00",
+				"end": "23:59",
+				"message":"shut",
+				"url": "http://nuc.lan:3000/sound/do-not-scream.mp3"
+			},
+			"Bose-Cuisine": {
+			},
+			"Bose-Salon-Rdc": {
+				"enabled": false
+			}
+		},
+		"dodo": {
+			"__default":{
+				"enabled": true,
+				"volume": 40,
+				"begin": "00:00",
+				"end": "23:59",
+				"message":"dodo",
+				"url": "http://nuc.lan:3000/sound/dodo.mp3"
+			},
+			"Bose-Cuisine": {
+			},
+			"Bose-Salon-Rdc": {
+				"enabled": false
+			}
+		},
+		"down": {
+			"__default":{
+				"enabled": true,
+				"volume": 60,
+				"begin": "00:00",
+				"end": "23:59",
+				"message":"al tavolo",
+				"url": "http://nuc.lan:3000/sound/scendete-subito.mp3"
+			},
+			"Bose-Cuisine": {
+			},
+			"Bose-Salon-Rdc": {
+				"enabled": false
+			}
+		},
+		"default": {
+			"__webhook": [
+				"https://api.telegram.org/bot........:......................./sendMessage?chat_id=........&text=door%20ringing"
+			],
+			"__default":{
+				"enabled": true,
+				"volume": 60,
+				"begin": "00:00",
+				"end": "23:59",
+				"message":"knock knock",
+				"url": "http://nuc.lan:3000/sound/doorbell-suona-alla-porta.mp3"
+			},
+			"Bose-Cuisine": {
+				"volume": 50,
+				"url": "http://nuc.lan:3000/sound/Romagna-mia.mp3"
+			},
+			"Bose-Salon-Rdc": {
+				"enabled": false
+			},
+			"Bose-Grenier": {
+				"volume": 45,
+				"begin": "09:00",
+				"end": "20:00"
+			},
+			"Bose-Enfants": {
+				"begin": "09:00",
+				"end": "20:00"
+			},
+			"Bose-Bureau": {
+				"begin": "07:00",
+				"end": "23:00",
+				"volume": 50,
+				"url": "http://nuc.lan:3000/sound/doorbell-suona-alla-porta.mp3"
+			}
+		}
+	}
+}
