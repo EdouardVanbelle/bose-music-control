@@ -81,11 +81,45 @@ function notify( bose, evname) {
 		console.log( bose+" notify "+evname+": is mute at this time: "+now);
 		return false;
 	}
-	
+
+
 	console.log( bose+" notify "+evname+": enabled with url: "+config.url+" volume: "+config.volume);
 	var answer = {};
 
-	bose.notify( process.env.NOTIF_KEY, config.url, config.volume, config.message, function( err, success){} );
+	
+	bose.notify( process.env.NOTIF_KEY, config.url, config.volume, config.message, function( err, success, jsonError){
+		if( err) {
+			console.log(bose+" notify error: "+err);
+	                if (('$' in jsonError) && ('name' in jsonError.$)) {
+				console.log(bose+" notify error code: "+jsonError.$.name);
+
+				if ( jsonError.$.name == "HTTP_STATUS_CONFLICT") {
+					if( bose.zone.isSlave) {
+						console.log( bose+" is a slave, do not redo notification");
+					}
+					else {
+						setTimeout( function(){ 
+							console.log( bose+" retry notification...");
+							bose.notify( process.env.NOTIF_KEY, config.url, config.volume, config.message, function( err, success, jsonError){
+								if (err) {
+									console.log(bose+" 2nd notify error: "+err);
+								}
+								else {
+									console.log(bose+" 2nd notify success");
+								}
+
+							});
+						}, 7000+Math.floor( 1000*Math.random()));
+
+
+					}
+				}
+			}
+		}
+		else {
+			console.log( bose + " notification played");
+		}
+	} );
 
 	return true;
 
@@ -138,6 +172,7 @@ function fire( req, res) {
 	  var boses = BoseSoundTouch.registered();
 	  for ( var i=0; i < boses.length; i++) {
 		answers[ boses[i].name ] = notify( boses[i], evname);
+		//setTimeout( (){ notify( boses[i], evname) }, i*1000+1);
 	  }
 	  res.json( answers);
 	  return;
