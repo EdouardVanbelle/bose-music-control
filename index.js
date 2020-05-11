@@ -4,14 +4,14 @@ require('dotenv').config()
 
 const express = require('express');
 const bonjour = require('bonjour')()
-const request = require('request');
+const urllib  = require('urllib');
 
 const BoseSoundTouch = require('./lib/bosesoundtouch');
 const Denon          = require('./lib/denon-avr');
 const fs 	     = require('fs');
 
-const GCastClient                = require('castv2-client').Client;
-const GCastDefaultMediaReceiver  = require('castv2-client').DefaultMediaReceiver;
+//const GCastClient                = require('castv2-client').Client;
+//const GCastDefaultMediaReceiver  = require('castv2-client').DefaultMediaReceiver;
 
 const app = express();
 
@@ -156,13 +156,13 @@ function fire( req, res) {
 	for( i=0; i<globalConfig.notify[evname].__webhook.length; i++) {
 		var url=globalConfig.notify[evname].__webhook[i];
 		console.log( "calling webhook: "+url);
-		request( { 'url' : url }, (err, res, body) => {
+		urllib.request( url, (err, data, res) => {
 			if( err) {
 				console.log("oops: "+err)
 				return;
 			}
 
-			console.log( body);
+			console.log( data.toString('utf8'));
 		} );
 	}
   }
@@ -505,6 +505,7 @@ function syncDenonOnBoseSalonRdcPowerChange( bose)
 // browse for all http services
 var soundtouch = bonjour.find({ type: 'soundtouch' });
 
+/*
 var chromecast = bonjour.find({ type: 'googlecast' });
 
 chromecast.on("up", function( service) {
@@ -542,10 +543,8 @@ chromecast.on("up", function( service) {
 			});
 		} );
 	});
-
-
-
 });
+*/
 
 soundtouch.on("up", function (service) {
 
