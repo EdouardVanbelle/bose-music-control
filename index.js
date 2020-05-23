@@ -168,7 +168,7 @@ app.get("/api/bose/:bose/custom-notify/:lang/:message", (req, res) => {
 	const textfile  = [ lang, hash, 'txt' ].join('.');
 	const localmp3  = [ './public/sound/custom', filename].join("/");
 	const localtext = [ './public/sound/custom', textfile].join("/");
-	const url	= [ 'http://nuc.lan/sound/custom', filename].join("/");
+	const url	= req.protocol + '://' + req.get('host') + '/sound/custom/' + filename;  
 
 	console.log( 'message "'+message+'" is associated to '+filename);
 
