@@ -176,16 +176,24 @@ app.get("/api/bose/:bose/custom-notify/:lang/:message", (req, res) => {
 
 	if (fs.existsSync( localmp3)) {
 
-		fs.writeFile( textfile, localtext, (err) => {} );
+		const time = new Date();
+		//touch files
+		try {
+			fs.utimesSync(localmp3, time, time);
+			fs.utimesSync(localtxt, time, time);
+		}
+		catch( err) {
+			//ignore
+		}
 
-		  // can play it directly
-		  if ( req.params.bose == "ALL") {
+		// can play it directly
+		if ( req.params.bose == "ALL") {
 			  var boses = BoseSoundTouch.registered();
 			  for ( var i=0; i < boses.length; i++) {
 				answers[ boses[i].name ] = notify( boses[i], '__custom', { url: url, message: message, volume: 70 });
 			  }
-		  }
-		  else {
+		}
+		else {
 			  var bose = BoseSoundTouch.lookup( req.params.bose);
 			  if (!bose) {
 			    res.status(400).json( { message: "not found" })
@@ -193,7 +201,7 @@ app.get("/api/bose/:bose/custom-notify/:lang/:message", (req, res) => {
 			  }
 
 		   	  answers[ bose.name ] = notify( bose, '__custom', { url: url, message: message, volume: 70 });
-		  }
+		}
 	}
 	else {
 		// FIXME: move this ugly code into a library...
