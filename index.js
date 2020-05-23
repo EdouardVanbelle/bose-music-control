@@ -177,13 +177,13 @@ app.get("/api/bose/:bose/custom-notify/:lang/:message", (req, res) => {
 	if (fs.existsSync( localmp3)) {
 
 		const time = new Date();
-		//touch files
 		try {
-			fs.utimesSync(localmp3, time, time);
-			fs.utimesSync(localtxt, time, time);
+			//touch files
+			fs.utimesSync(localmp3,  time, time);
+			fs.utimesSync(localtext, time, time);
 		}
 		catch( err) {
-			//ignore
+			console.log(err);
 		}
 
 		// can play it directly
