@@ -3,3 +3,6 @@ node_modules/
 .env
 package-lock.json
 config.json
+public/sound/custom/*.txt
+public/sound/custom/*.mp3
+

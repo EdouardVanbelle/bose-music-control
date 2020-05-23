@@ -5,6 +5,7 @@ require('dotenv').config()
 const express = require('express');
 const bonjour = require('bonjour')()
 const urllib  = require('urllib');
+const crypto  = require('crypto');
 
 const BoseSoundTouch = require('./lib/bosesoundtouch');
 const Denon          = require('./lib/denon-avr');
@@ -56,30 +57,37 @@ app.get("/api/bose/:bose", (req, res) => {
   res.json( bose );
 });
 
-function notify( bose, evname) {
+function notify( bose, evname, customconfig={}) {
 	var config = Object.assign( defaultConfig);
-	if( !( evname in globalConfig.notify)) {
-		console.log( bose+" unknown notify "+evname);
-		return false;
-	}
 
-	if( '__default' in globalConfig.notify[evname]) {
-		config = Object.assign( config, globalConfig.notify[evname].__default);
+	if (evname == "__custom") {
+		//custom notification
+		config=customconfig;
 	}
-	if( bose.name in globalConfig.notify[evname]) {
-		config = Object.assign( config, globalConfig.notify[evname][bose.name]);
-	}
+	else {
+		if( !( evname in globalConfig.notify)) {
+			console.log( bose+" unknown notify "+evname);
+			return false;
+		}
 
-	if( !config.enabled) {
-		console.log( bose+" notify "+evname+": disabled");
-		return false;
-	}
+		if( '__default' in globalConfig.notify[evname]) {
+			config = Object.assign( config, globalConfig.notify[evname].__default);
+		}
+		if( bose.name in globalConfig.notify[evname]) {
+			config = Object.assign( config, globalConfig.notify[evname][bose.name]);
+		}
 
-  	var now = new Date().toTimeString().replace( /^(..:..).*/, "$1"); //keep only hh:mm in local timezone
+		if( !config.enabled) {
+			console.log( bose+" notify "+evname+": disabled");
+			return false;
+		}
 
-	if( (now < config.begin) || (now > config.end)) {
-		console.log( bose+" notify "+evname+": is mute at this time: "+now);
-		return false;
+		var now = new Date().toTimeString().replace( /^(..:..).*/, "$1"); //keep only hh:mm in local timezone
+
+		if( (now < config.begin) || (now > config.end)) {
+			console.log( bose+" notify "+evname+": is mute at this time: "+now);
+			return false;
+		}
 	}
 
 
@@ -140,9 +148,107 @@ app.get("/api/config", (req, res) => {
 
 /* kept for compatibility */
 app.get("/api/bose/:bose/notify", (req, res) => {
-	req.params.evname = "default"; 
+	req.params.evname = "default";  
 	fire( req, res);
 } );
+
+app.get("/api/bose/:bose/custom-notify/:lang/:message", (req, res) => {
+
+	var message = decodeURI( req.params.message);
+	var lang    = req.params.lang;
+
+	if (['fr', 'it', 'en'].indexOf(lang) == -1) {
+		res.json({ 'error': 'language not supported'})
+		return;
+	}
+
+	const hash = crypto.createHmac('sha256', message).digest('hex');
+
+	const filename  = [ lang, hash, 'mp3' ].join('.');
+	const textfile  = [ lang, hash, 'txt' ].join('.');
+	const localmp3  = [ './public/sound/custom', filename].join("/");
+	const localtext = [ './public/sound/custom', textfile].join("/");
+	const url	= [ 'http://nuc.lan/sound/custom', filename].join("/");
+
+	console.log( 'message "'+message+'" is associated to '+filename);
+
+	var answers=[];
+
+	if (fs.existsSync( localmp3)) {
+
+		fs.writeFile( textfile, localtext, (err) => {} );
+
+		  // can play it directly
+		  if ( req.params.bose == "ALL") {
+			  var boses = BoseSoundTouch.registered();
+			  for ( var i=0; i < boses.length; i++) {
+				answers[ boses[i].name ] = notify( boses[i], '__custom', { url: url, message: message, volume: 70 });
+			  }
+		  }
+		  else {
+			  var bose = BoseSoundTouch.lookup( req.params.bose);
+			  if (!bose) {
+			    res.status(400).json( { message: "not found" })
+			    return
+			  }
+
+		   	  answers[ bose.name ] = notify( bose, '__custom', { url: url, message: message, volume: 70 });
+		  }
+	}
+	else {
+		// FIXME: move this ugly code into a library...
+	
+		//stupid helper
+		fs.writeFile( localtext, message+"\n", (err) => {} );
+
+		var writeStream = fs.createWriteStream( localmp3, { 'encoding': null } );
+
+		// google play, simulate Mplayer user agent
+		var options = {
+			writeStream: writeStream,
+			headers: {
+				'User-Agent': 'MPLayer'
+			}
+		};
+		urllib.request( 
+			"http://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&q="+encodeURIComponent(message)+"&tl="+lang,
+			options, 
+			(err, unuseddata, unusedres) => {
+				if( err) {
+					writeStream.close();
+					fs.unlink(filename);
+					res.json({ 'filename': filename, 'message': message, 'created':false, 'error':err });
+				}
+				else {
+					writeStream.close();
+					// can play it directly
+					if ( req.params.bose == "ALL") {
+						  var boses = BoseSoundTouch.registered();
+						  for ( var i=0; i < boses.length; i++) {
+							answers[ boses[i].name ] = notify( boses[i], '__custom', { url: url, message: message, volume: 70 });
+						  }
+					}
+					else {
+						  var bose = BoseSoundTouch.lookup( req.params.bose);
+						  if (!bose) {
+						    res.status(400).json( { message: "not found" })
+						    return
+						  }
+
+						  answers[ bose.name ] = notify( bose, '__custom', { url: url, message: message, volume: 70 });
+				        }
+
+				}
+			} 
+		);
+
+	}
+
+	res.json( answers);	
+
+
+} );
+
 
 app.get("/api/bose/:bose/notify/:evname", fire);
 	

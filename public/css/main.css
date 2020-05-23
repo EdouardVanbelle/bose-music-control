@@ -61,6 +61,11 @@ body {
 	background-color: var( --card-background);
 }
 
+.custom-notification > input {
+	font-size: 25pt;
+	margin-top: 5px;
+}
+
 .player {
 	width: 100%;
 	display: flex;

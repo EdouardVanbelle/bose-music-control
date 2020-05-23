@@ -39,8 +39,9 @@
 }
 */
 
-( function($) {
 
+
+( function($) {
 
    $(document).ready( () => {
 
@@ -64,6 +65,21 @@
 			} );
 		});
 		$(value).trigger('input'); //force display of volume value
+	});
+
+	$('.custom-notification').submit( (event) => {
+
+		var lang    = $(event.target).find("input[name=lang]").first();
+		var message = $(event.target).find("input[name=message]").first();
+
+		var url = window.location.origin+'/api/bose/ALL/custom-notify/'+lang.val()+'/'+encodeURIComponent( message.val());
+
+		$("#actionFrm").attr('src', url);
+
+		//clean
+		message.val("");
+
+		event.preventDefault();
 	});
 
     });
