@@ -145,7 +145,11 @@ var watchdog = { };
 app.get("/ping", (req, res) => {
   var now=Math.floor( Date.now() / 1000);
   console.log("ping watchdog saved for "+req.connection.remoteAddress+ " at "+now)
-  watchdog[req.connection.remoteAddress] = { 'time':now, 'ua': req.get('user-agent') };
+  var uid=null;
+  if ('uid' in req.query)
+	uid = req.query.uid;
+
+  watchdog[req.connection.remoteAddress] = { 'time':now, 'ua': req.get('user-agent'), 'uid':uid };
   res.json( {});
 } );
 
@@ -155,7 +159,7 @@ app.get("/api/watchdog", (req, res) => {
   var now=Math.floor( Date.now() / 1000);
   var result={};
   Object.keys( watchdog).forEach( (key) => {
-	  result[key] = { 'last-ping': now - watchdog[key].time, 'ua': watchdog[key].ua };
+	  result[key] = { 'last-ping': now - watchdog[key].time, 'ua': watchdog[key].ua, 'uid': watchdog[key].uid };
   });
   res.json( result);
 } );
