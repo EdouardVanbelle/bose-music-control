@@ -104,7 +104,7 @@ function notify( bose, evname, customconfig={}) {
 	bose.notify( process.env.NOTIF_KEY, config.url, config.volume, config.message, function( err, success, jsonError){
 		if( err) {
 			console.log(bose+" notify error: "+err);
-	                if (('$' in jsonError) && ('name' in jsonError.$)) {
+	                if ((jsonError != null) && (jsonError.constructor === Object) &&  ('$' in jsonError) && ('name' in jsonError.$)) {
 				console.log(bose+" notify error code: "+jsonError.$.name);
 
 				if ( jsonError.$.name == "HTTP_STATUS_CONFLICT") {
