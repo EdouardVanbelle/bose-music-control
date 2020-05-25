@@ -20,7 +20,7 @@ app.set('view engine', 'ejs')
 app.set('json spaces', ' ');
 
 app.use(function (req, res, next) {
-    console.log( [ "HTTP", req.connection.remoteAddress, req.get('host'), req.method, req.url, req.get('user-agent')].join(" "));
+    console.log( [ "HTTP", req.ip, req.get('host'), req.method, req.url, req.get('user-agent')].join(" "));
     next();
 });
 app.use(express.static('public'));
@@ -144,12 +144,12 @@ var watchdog = { };
 
 app.get("/ping", (req, res) => {
   var now=Math.floor( Date.now() / 1000);
-  console.log("ping watchdog saved for "+req.connection.remoteAddress+ " at "+now)
+  console.log("ping watchdog saved for "+req.ip+ " at "+now)
   var uid=null;
   if ('uid' in req.query)
 	uid = req.query.uid;
 
-  watchdog[req.connection.remoteAddress] = { 'time':now, 'ua': req.get('user-agent'), 'uid':uid };
+  watchdog[req.ip] = { 'time':now, 'ua': req.get('user-agent'), 'uid':uid };
   res.json( {});
 } );
 
