@@ -18,7 +18,13 @@ const app = express();
 
 app.set('view engine', 'ejs')
 app.set('json spaces', ' ');
+
+app.use(function (req, res, next) {
+    console.log( [ "HTTP", req.connection.remoteAddress, req.get('host'), req.method, req.url, req.get('user-agent')].join(" "));
+    next();
+});
 app.use(express.static('public'));
+
 
 //default values by security
 var defaultConfig = {
@@ -133,10 +139,25 @@ function notify( bose, evname, customconfig={}) {
 
 }
 
-/* dump config */
+//fixme: could save it periodically
+var watchdog = { };
+
 app.get("/ping", (req, res) => {
-  console.log("ping from "+req.connection.remoteAddress)
+  var now=Math.floor( Date.now() / 1000);
+  console.log("ping watchdog saved for "+req.connection.remoteAddress+ " at "+now)
+  watchdog[req.connection.remoteAddress] = { 'time':now, 'ua': req.get('user-agent') };
   res.json( {});
+} );
+
+/* dump watchdog */
+app.get("/api/watchdog", (req, res) => {
+  //FIXME: should check age
+  var now=Math.floor( Date.now() / 1000);
+  var result={};
+  Object.keys( watchdog).forEach( (key) => {
+	  result[key] = { 'last-ping': now - watchdog[key].time, 'ua': watchdog[key].ua };
+  });
+  res.json( result);
 } );
 
 
@@ -190,7 +211,7 @@ app.get("/api/bose/:bose/custom-notify/:lang/:message", (req, res) => {
 		if ( req.params.bose == "ALL") {
 			  var boses = BoseSoundTouch.registered();
 			  for ( var i=0; i < boses.length; i++) {
-				answers[ boses[i].name ] = notify( boses[i], '__custom', { url: url, message: message, volume: 70 });
+				answers[ boses[i].name ] = notify( boses[i], '__custom', { url: url, message: message, volume: 50 });
 			  }
 		}
 		else {
@@ -200,7 +221,7 @@ app.get("/api/bose/:bose/custom-notify/:lang/:message", (req, res) => {
 			    return
 			  }
 
-		   	  answers[ bose.name ] = notify( bose, '__custom', { url: url, message: message, volume: 70 });
+		   	  answers[ bose.name ] = notify( bose, '__custom', { url: url, message: message, volume: 50 });
 		}
 	}
 	else {
@@ -233,7 +254,7 @@ app.get("/api/bose/:bose/custom-notify/:lang/:message", (req, res) => {
 					if ( req.params.bose == "ALL") {
 						  var boses = BoseSoundTouch.registered();
 						  for ( var i=0; i < boses.length; i++) {
-							answers[ boses[i].name ] = notify( boses[i], '__custom', { url: url, message: message, volume: 70 });
+							answers[ boses[i].name ] = notify( boses[i], '__custom', { url: url, message: message, volume: 50 });
 						  }
 					}
 					else {
@@ -243,7 +264,7 @@ app.get("/api/bose/:bose/custom-notify/:lang/:message", (req, res) => {
 						    return
 						  }
 
-						  answers[ bose.name ] = notify( bose, '__custom', { url: url, message: message, volume: 70 });
+						  answers[ bose.name ] = notify( bose, '__custom', { url: url, message: message, volume: 50 });
 				        }
 
 				}
