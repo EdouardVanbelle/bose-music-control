@@ -39,7 +39,7 @@ var globalConfig = JSON.parse(fs.readFileSync('config.json', 'utf8'));
 var denon = new Denon( process.env.DENON_ADDRESS);
 
 app.get('/', function (req, res) {
-   res.render('index', { title: "test", boses: BoseSoundTouch.registered(), 'config': globalConfig });
+   res.render('index', { title: "🎶 Music Control 🎶", boses: BoseSoundTouch.registered(), 'config': globalConfig });
 })
 
 /*
