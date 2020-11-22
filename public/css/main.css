@@ -24,6 +24,7 @@
 */
 html {
 	height: 100%;
+	width: 100vw;
 }
 
 body {
@@ -51,9 +52,7 @@ body {
 	display: inline-table;
 	min-height: 610px;
 	text-align: left;
-	width: 90%;
-	max-width: 500px;
-	min-width: 400px;
+	width: 99vw; /* for smartphones */
 
 	margin: 2px;
 	border: solid 1px var( --button-hover);
@@ -61,9 +60,21 @@ body {
 	background-color: var( --card-background);
 }
 
+@media (min-width: 600px) {
+  .card {
+	width: 90%;
+	max-width: 500px;
+	min-width: 300px;
+  }
+}
+
 .custom-notification > input {
-	font-size: 22pt;
+	font-size: 18pt;
 	margin-top: 5px;
+}
+
+input[type=text] {
+	width: auto;
 }
 
 .player {
@@ -146,18 +157,18 @@ body {
 .buttons-container > a {
 	margin: 2px;
 	padding: 2px;
-	font-size: 30pt;
+	font-size: 24pt;
 	flex-grow: 1;
 	text-align: center;
 }
 
 .buttons-hack {
-	font-size: 10pt;
+	font-size: 8pt;
 	align-items: left;
 	justify-content: left;
 }
 .buttons-hack > a {
-	font-size: 10pt;
+	font-size: 8pt;
 	margin: 2px;
 	padding: 2px;
 	flex-grow: 0;
@@ -203,7 +214,7 @@ a:active {
 }
 
 .buttons, .bookmark {
-	font-size: 36pt;
+	font-size: 26pt;
 }
 
 .volume {
@@ -221,7 +232,7 @@ a:active {
 }
 
 .p33 {
-	flex-basis: 33%;
+	flex-basis: 30%;
 	font-size: 11pt;
 }
 
