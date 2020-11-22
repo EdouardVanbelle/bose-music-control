@@ -1,0 +1,15 @@
+{
+  "name": "Music Control",
+  "short_name": "Music Control",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "white",
+  "theme_color":"white",
+  "icons": [
+    { "src": "/icons/logo-w-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/icons/logo-180.png", "  sizes": "180x180", "type": "image/png" },
+    { "src": "/icons/logo-w-196.png", "sizes": "196x196", "type": "image/png" },
+    { "src": "/icons/logo-196.png",   "sizes": "196x196", "type": "image/png" }
+  ],
+  "orientation":"any"
+}

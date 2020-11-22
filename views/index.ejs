@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <title><%= title %></title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0 maximum-scale=1.0, user-scalable=no" />
+    <link rel="manifest" href="manifest.json" /> 
     <link rel="stylesheet" type="text/css" href="css/ionicons.css" />
     <link rel="stylesheet" type="text/css" href="css/main.css" />
     <link rel="icon" type="image/png" href="favicon.png" />
@@ -163,7 +164,7 @@
 			      <span title="rssi"><%= bose.stationStats.rssi_dBm %> dBm</span>
 			      <span title="speed"><%= bose.stationStats.linkSpeed_Mbps %> Mbps</span>
 		      </div>
-		      <a href="/api/bose/<%= bose.mac %>">API details</a>
+		      <a href="/api/bose/<%= bose.mac %>">API</a>
 		      <a target="action" href="/api/bose/<%= bose.mac %>/sync">sync</a>
 		      <a target="action" href="/api/bose/<%= bose.mac %>/reboot" onclick="return confirm('sure ?');">reboot</a>
 	      </div>

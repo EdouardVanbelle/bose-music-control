@@ -1,4 +1,6 @@
 node_modules/
+public/firmware/
+public/provisionning/
 *.swp
 .env
 package-lock.json
