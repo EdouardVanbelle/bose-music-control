@@ -6,6 +6,7 @@ const express = require('express');
 const bonjour = require('bonjour')()
 const urllib  = require('urllib');
 const crypto  = require('crypto');
+const mqtt    = require('mqtt');
 
 const BoseSoundTouch = require('./lib/bosesoundtouch');
 const Denon          = require('./lib/denon-avr');
@@ -638,6 +639,32 @@ function syncDenonOnBoseSalonRdcPowerChange( bose)
 	}
 
 }
+
+//FIXME: use config file to map mqtt topics with actions
+var mqttClient = mqtt.connect("mqtt://10.1.0.254",{clientId:"bose-control"})
+mqttClient.on("connect", function() {
+    mqttClient.subscribe( "z2m-lille/bouton-a-table");
+});
+mqttClient.on("message", function( topic, message, paquet) {
+    if (topic == "z2m-lille/bouton-a-table") {
+        var payload = JSON.parse( message);
+        var evname=null;
+        if      (payload.action == "on" || payload.action == "off" ) evname="diner";
+        else if (payload.action == "hold")                           evname="down";
+        
+        if (evname != null) {
+            var answers={};
+
+            console.log( "mqtt: topic:"+topic+" action:"+payload.action+ ", calling event "+evname)
+            var boses = BoseSoundTouch.registered();
+            for ( var i=0; i < boses.length; i++) {
+                answers[ boses[i].name ] = notify( boses[i], evname);
+                //setTimeout( (){ notify( boses[i], evname) }, i*1000+1);
+            }
+           // res.json( answers);
+        }
+    }
+});
 
 
 
