@@ -640,26 +640,63 @@ function syncDenonOnBoseSalonRdcPowerChange( bose)
 
 }
 
+
 //FIXME: use config file to map mqtt topics with actions
 var mqttClient = mqtt.connect("mqtt://10.1.0.254",{clientId:"bose-control"})
+var mqttTopic = "z2m-lille/bouton-a-table/action";
+mqttClient._retry = 0;
 mqttClient.on("connect", function() {
-    mqttClient.subscribe( "z2m-lille/bouton-a-table");
+    mqttClient._retry = 0;
+    mqttClient._lastMessage={};
+    mqttClient.subscribe( mqttTopic, function( err) {
+        if (err) {
+            console.log("Unable to subscribe on mqtt topic: "+err)
+        }
+        else {
+            console.log("Mqtt subscribed to: "+mqttTopic)
+        }
+    });
+    mqttClient._lastMessage[ mqttTopic ]=0;
 });
+mqttClient.on("error",function(error){
+    //will retry each sec, log only once
+    if (mqttClient._retry == 0) {
+        console.log("failed to connect to mqtt: "+error);
+        mqttClient._retry = 1;
+    }
+});
+
 mqttClient.on("message", function( topic, message, paquet) {
-    if (topic == "z2m-lille/bouton-a-table") {
-        var payload = JSON.parse( message);
+    if (topic == mqttTopic) {
+        //var action = JSON.parse( message).action;
+        var action = message.toString();
         var evname=null;
-        if      (payload.action == "on" || payload.action == "off" ) evname="diner";
-        else if (payload.action == "hold")                           evname="down";
+
+        switch( action) {
+            case( "on"):
+            case("off"):
+                evname="diner"; break;
+            case( "hold"):
+                evname="down"; break;
+        }
         
         if (evname != null) {
             var answers={};
 
-            console.log( "mqtt: topic:"+topic+" action:"+payload.action+ ", calling event "+evname)
-            var boses = BoseSoundTouch.registered();
-            for ( var i=0; i < boses.length; i++) {
-                answers[ boses[i].name ] = notify( boses[i], evname);
-                //setTimeout( (){ notify( boses[i], evname) }, i*1000+1);
+            var now = Math.floor( Date.now() / 1000);
+            if ((now - mqttClient._lastMessage[topic]) > 6) {
+                //avoid multiple event
+
+                mqttClient._lastMessage[topic] = now;
+
+                console.log( "mqtt: topic:"+topic+" action:"+action+ ", calling event "+evname)
+
+                var boses = BoseSoundTouch.registered();
+                for ( var i=0; i < boses.length; i++) {
+                    answers[ boses[i].name ] = notify( boses[i], evname);
+                    //setTimeout( (){ notify( boses[i], evname) }, i*1000+1);
+                }
+
             }
            // res.json( answers);
         }
