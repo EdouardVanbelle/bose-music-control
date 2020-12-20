@@ -172,12 +172,6 @@ app.get("/api/config", (req, res) => {
 } );
 
 
-/* kept for compatibility */
-app.get("/api/bose/:bose/notify", (req, res) => {
-	req.params.evname = "default";  
-	fire( req, res);
-} );
-
 app.get("/api/bose/:bose/custom-notify/:lang/:message", (req, res) => {
 
 	var message = decodeURI( req.params.message);
@@ -284,12 +278,35 @@ app.get("/api/bose/:bose/custom-notify/:lang/:message", (req, res) => {
 } );
 
 
-app.get("/api/bose/:bose/notify/:evname", fire);
-	
-function fire( req, res) {
+app.get("/api/bose/:bose/notify/:evname", (req, res) => { 
+    fire( req.params.evname, req.params.bose, function( err, success) {
+        if (err) {
+            console.log( err);
+            //res.status(400).json( { message : err } );
+        }
+        else {
+            res.json( success);
+        }
+    });
+});
+
+/* kept for compatibility */
+app.get("/api/bose/:bose/notify", (req, res) => {
+    fire( "default", req.params.bose, function( err, success) {
+        if (err) {
+            console.log( err);
+            //res.status(400).json( { message : err } );
+        }
+        else {
+            res.json( success);
+        }
+    });
+});
+
+
+function fire( evname, target, handler) {
 
   var answers = {};
-  var evname = req.params.evname;
 
   if( ( evname in globalConfig.notify) && ('__webhook' in globalConfig.notify[evname]) ) {
 	var i;
@@ -298,7 +315,7 @@ function fire( req, res) {
 		console.log( "calling webhook: "+url);
 		urllib.request( url, (err, data, res) => {
 			if( err) {
-				console.log("oops: "+err)
+                handler( "oops: "+err, null);
 				return;
 			}
 
@@ -308,26 +325,25 @@ function fire( req, res) {
   }
 
 
-  if ( req.params.bose == "ALL") {
+  if ( target == "ALL") {
 	  var boses = BoseSoundTouch.registered();
 	  for ( var i=0; i < boses.length; i++) {
 		answers[ boses[i].name ] = notify( boses[i], evname);
-		//setTimeout( (){ notify( boses[i], evname) }, i*1000+1);
 	  }
-	  res.json( answers);
+	  handler( null, answers);
 	  return;
   }
   else {
-	  var bose = BoseSoundTouch.lookup( req.params.bose);
+	  var bose = BoseSoundTouch.lookup( target);
 	  if (!bose) {
-	    res.status(400).json( { message: "not found" })
+        handler( "not found", null);
 	    return
 	  }
 
 	  answers[ bose.name ] = notify( bose, evname);
   }
 
-  res.json( answers);
+  handler( null, answers);
 }
 
 app.get("/api/bose/:bose/play_url/:url", (req, res) => {
@@ -640,9 +656,19 @@ function syncDenonOnBoseSalonRdcPowerChange( bose)
 
 }
 
-
 //FIXME: use config file to map mqtt topics with actions
-var mqttClient = mqtt.connect("mqtt://10.1.0.254",{clientId:"bose-control"})
+/* Potential config:
+var mqttMapping = {
+    server: 'mqtt://10.1.254',
+    map: [ 
+        { topic: "z2m-lille/bouton-a-table/action", payload: "on", fire: "diner" },
+        { topic: "z2m-lille/bouton-a-table/action", payload: "off", fire: "diner" },
+        { topic: "z2m-lille/bouton-a-table/action", payload: "hold", fire: "down" },
+    ]
+}
+*/
+
+var mqttClient = mqtt.connect("mqtt://10.1.0.254",{clientId:"bose-control"});
 var mqttTopic = "z2m-lille/bouton-a-table/action";
 mqttClient._retry = 0;
 mqttClient.on("connect", function() {
@@ -650,7 +676,7 @@ mqttClient.on("connect", function() {
     mqttClient._lastMessage={};
     mqttClient.subscribe( mqttTopic, function( err) {
         if (err) {
-            console.log("Unable to subscribe on mqtt topic: "+err)
+            console.log("Mqtt Unable to subscribe on topic: "+err)
         }
         else {
             console.log("Mqtt subscribed to: "+mqttTopic)
@@ -681,8 +707,6 @@ mqttClient.on("message", function( topic, message, paquet) {
         }
         
         if (evname != null) {
-            var answers={};
-
             var now = Math.floor( Date.now() / 1000);
             if ((now - mqttClient._lastMessage[topic]) > 6) {
                 //avoid multiple event
@@ -690,15 +714,15 @@ mqttClient.on("message", function( topic, message, paquet) {
                 mqttClient._lastMessage[topic] = now;
 
                 console.log( "mqtt: topic:"+topic+" action:"+action+ ", calling event "+evname)
-
-                var boses = BoseSoundTouch.registered();
-                for ( var i=0; i < boses.length; i++) {
-                    answers[ boses[i].name ] = notify( boses[i], evname);
-                    //setTimeout( (){ notify( boses[i], evname) }, i*1000+1);
-                }
-
+                fire( evname, "ALL", function( err, answer) { 
+                    if (err) {
+                        console.log( "oops: "+err);
+                    }
+                    else {
+                        console.log("success: ", answer);
+                    }
+                });
             }
-           // res.json( answers);
         }
     }
 });
