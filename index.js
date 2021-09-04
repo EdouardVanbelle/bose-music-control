@@ -1,5 +1,6 @@
 'use strict';
 
+
 require('dotenv').config()
 
 const express = require('express');
@@ -104,7 +105,6 @@ function notify( bose, evname, customconfig={}) {
 	console.log( bose+" notify "+evname+": enabled with url: "+config.url+" volume: "+config.volume);
 	var answer = {};
 
-	
 	bose.notify( process.env.NOTIF_KEY, config.url, config.volume, config.message, function( err, success, jsonError){
 		if( err) {
 			console.log(bose+" notify error: "+err);
@@ -671,7 +671,7 @@ var mqttMapping = {
 }
 */
 
-var mqttClient = mqtt.connect("mqtt://10.1.0.254",{clientId:"bose-control"});
+var mqttClient = mqtt.connect("mqtt://192.168.100.254",{clientId:"bose-control"});
 var mqttTopic = "z2m-lille/bouton-a-table/action";
 mqttClient._retry = 0;
 mqttClient.on("connect", function() {
