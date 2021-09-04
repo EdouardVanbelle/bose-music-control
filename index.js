@@ -12,6 +12,9 @@ const BoseSoundTouch = require('./lib/bosesoundtouch');
 const Denon          = require('./lib/denon-avr');
 const fs 	     = require('fs');
 
+const process = require('process');
+process.title="music-control";
+
 //const GCastClient                = require('castv2-client').Client;
 //const GCastDefaultMediaReceiver  = require('castv2-client').DefaultMediaReceiver;
 
