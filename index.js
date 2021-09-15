@@ -627,34 +627,54 @@ app.get("/api/bose/:bose/ungroup/:slave", (req, res) => {
   });
 });
 
+var denonPowerOffTimer = null;
 function syncDenonOnBoseSalonRdcPowerChange( bose)
 {
 	
-        console.log( bose+" powered: "+ bose.powerOn);
+    console.log( bose+" powered: "+ bose.powerOn);
 
-	if( bose.powerOn && bose.source != "UPDATE")
-        {
-	  denon.call( ["Z2?"], function( err, answers) {
+    if( bose.source == "UPDATE") 
+    {
+        console.log( bose+" is updating, do not control denon power");
+        return;
+    }
+
+	if( bose.powerOn)
+    {
+        //stop any potential poweroff timer
+        if (denonPowerOffTimer != null) {
+            console.log("cancelling the previous Denon poweroff");
+            clearTimeout( denonPowerOffTimer);
+            denonPowerOffTimer = null;
+        }
+        //poweron immediatly denon
+        denon.call( ["Z2?"], function( err, answers) {
             if (err) { return console.log( err) }
             if( answers.indexOf( "Z2OFF") != -1) {
-		console.log("Switching on Denon")
-		denon.call( [ "Z2ON", "Z2AUX1" ] ) ;
-		//denon_command( "Z250"); //set volume
-	    }
-            else if( answers.indexOf( "Z2ON") != -1) {
-		console.log("Denon is on")
+                console.log("Switching on Denon")
+                denon.call( [ "Z2ON", "Z2AUX1" ] ) ;
+                //denon_command( "Z250"); //set volume
             }
-	  } );
+            else if( answers.indexOf( "Z2ON") != -1) {
+                console.log("Denon is on")
+            }
+        });
 	}
 	else
 	{
-	  denon.call( [ "Z2?" ], function( err, answers) {
-            if (err) { return console.log( err) }
-            if( answers.indexOf( "Z2ON") != -1 && answers.indexOf( "Z2AUX1") != -1) {
-		console.log("Denon is on AUX1, switching it off")
-		denon.call( [ "Z2OFF" ] );
-	    }
-          })
+        //poweroff denon in 5min
+        console.log("schedduling a Denon poweroff");
+        denonPowerOffTimer = setTimeout( function() { 
+                denon.call( [ "Z2?" ], function( err, answers) {
+                    if (err) { return console.log( err) }
+                    if( answers.indexOf( "Z2ON") != -1 && answers.indexOf( "Z2AUX1") != -1) {
+                        console.log("Denon is on AUX1, switching it off")
+                        denon.call( [ "Z2OFF" ] );
+                    }
+                })
+            }, 
+            5*60*1000
+        );
 	}
 
 }
