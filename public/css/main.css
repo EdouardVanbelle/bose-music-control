@@ -1,6 +1,8 @@
 :root {
 	--card-background: white;
-	--background: #484848;
+	--card-shadow: #d6d6d6;
+
+	--background: white;
 	--text: black;
 
 	--button-active: red;
@@ -11,17 +13,25 @@
 	--color-button-hover: #d8d8d8;
 }
 
-/*
-:root {
-	--card-background: black;
-	--background: #484848;
-	--text: white;
-
-	--button-active: red;
-	--button-background: #484848;
-	--button-hover: #686868;
+@media (prefers-color-scheme: light) {
+	:root {
+	}
 }
-*/
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--card-background: #484848;
+		--card-shadow: black;
+
+		--background: #484848;
+		--text: white;
+
+		--button-active: red;
+		--button-background: #484848;
+		--button-hover: #686868;
+	}
+}
+
 html {
 	height: 100%;
 	width: 100vw;
@@ -58,6 +68,7 @@ body {
 	border: solid 1px var( --button-hover);
 	border-radius: 10px;
 	background-color: var( --card-background);
+	box-shadow: 0 0 0 transparent, 0 0 0 transparent, 6px 4px 25px var( --card-shadow);
 }
 
 @media (min-width: 600px) {
