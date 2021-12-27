@@ -9,7 +9,7 @@
 	--button-background: #f8f8f8;
 	--button-hover: #e8e8e8;
 
-	--color-button-background: #e8e8e8;
+	--color-button-background: #e8e8e82;
 	--color-button-hover: #d8d8d8;
 }
 
@@ -24,11 +24,15 @@
 		--card-shadow: black;
 
 		--background: #484848;
-		--text: white;
+		--text: #d6d6d6;
 
 		--button-active: red;
 		--button-background: #484848;
 		--button-hover: #686868;
+
+		--color-button-background: #484848;
+		--color-button-hover: #d8d8d8;
+	
 	}
 }
 
@@ -86,6 +90,10 @@ body {
 
 input[type=text] {
 	width: auto;
+}
+
+input[type=text], input[type=password] {
+	background: var( --card-background);
 }
 
 .player {
