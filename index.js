@@ -692,21 +692,30 @@ var mqttMapping = {
 */
 
 var mqttClient = mqtt.connect("mqtt://192.168.100.254",{clientId:"bose-control"});
-var mqttTopic = "z2m-lille/bouton-a-table/action";
+var atableTopic = "z2m-lille/bouton-a-table";
+//var testTopic   = "z2m-lille/bouton-test";
+var laboTopic   = "z2m-lille/bonton-labo";
+var topics = [ atableTopic, laboTopic ];
+
 mqttClient._retry = 0;
 mqttClient.on("connect", function() {
     mqttClient._retry = 0;
     mqttClient._lastMessage={};
-    mqttClient.subscribe( mqttTopic, function( err) {
-        if (err) {
-            console.log("Mqtt Unable to subscribe on topic: "+err)
-        }
-        else {
-            console.log("Mqtt subscribed to: "+mqttTopic)
-        }
+
+    topics.forEach( (topic) => { 
+	    mqttClient.subscribe( topic, function( err) {
+		if (err) {
+		    console.log("Mqtt Unable to subscribe on topic: "+err)
+		}
+		else {
+		    console.log("Mqtt subscribed to: "+topic)
+		}
+	    });
+	    mqttClient._lastMessage[ topic ]=0;
     });
-    mqttClient._lastMessage[ mqttTopic ]=0;
+
 });
+
 mqttClient.on("error",function(error){
     //will retry each sec, log only once
     if (mqttClient._retry == 0) {
@@ -715,21 +724,56 @@ mqttClient.on("error",function(error){
     }
 });
 
-mqttClient.on("message", function( topic, message, paquet) {
-    if (topic == mqttTopic) {
-        //var action = JSON.parse( message).action;
-        var action = message.toString();
-        var evname=null;
+mqttClient.on("message", function( topic, payload, paquet) {
 
-        switch( action) {
-            case( "on"):
-            case("off"):
-                evname="diner"; break;
-            case( "hold"):
-                evname="down"; break;
-        }
-        
-        if (evname != null) {
+    switch( topic) {
+        //FIXME: should check topic later
+	    case( atableTopic):
+	    case( laboTopic):
+
+            var action = undefined;
+            var message = undefined;
+            if (topic.endsWith('/action')) {
+                //old format
+                action = payload.toString();
+            }
+            else {
+                message = JSON.parse( payload);
+                if( 'action' in message) action = message.action;
+            }
+
+            console.log( "mqtt: topic:"+topic+" payload: "+payload);
+
+            var evname=null;
+
+            //FIXME: normalize action
+            switch( action) {
+
+                case( ""):       // notification
+                case( "press"): 
+                case( "off"): 
+                case( "release"): 
+                    //ignored
+                    break;
+
+                case( "on"):     // single hit from philips
+                case( "single"): // single hit from sonoff
+                    evname="diner"; 
+                    if (topic === laboTopic) evname="pizza"; 
+                    break;
+
+                case( "hold"): // long press from philips
+                case( "long"): // long press from sonoff
+                    evname="down"; 
+                    if (topic === laboTopic) evname=null; 
+                    break;
+            }
+
+            if (evname === null) {
+                console.log( "mqtt: topic:"+topic+" no event triggered");
+                return;
+            }
+
             var now = Math.floor( Date.now() / 1000);
             if ((now - mqttClient._lastMessage[topic]) > 6) {
                 //avoid multiple event
@@ -739,14 +783,18 @@ mqttClient.on("message", function( topic, message, paquet) {
                 console.log( "mqtt: topic:"+topic+" action:"+action+ ", calling event "+evname)
                 fire( evname, "ALL", function( err, answer) { 
                     if (err) {
-                        console.log( "oops: "+err);
+                    console.log( "oops: "+err);
                     }
                     else {
-                        console.log("success: ", answer);
+                    console.log("success: ", answer);
                     }
                 });
             }
-        }
+	    	break;
+
+	    default:
+            console.log("mqtt: Warning, not supposed to receive a message from topic "+topic);
+            break;
     }
 });
 
