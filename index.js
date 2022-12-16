@@ -679,124 +679,106 @@ function syncDenonOnBoseSalonRdcPowerChange( bose)
 
 }
 
-//FIXME: use config file to map mqtt topics with actions
-/* Potential config:
-var mqttMapping = {
-    server: 'mqtt://10.1.254',
-    map: [ 
-        { topic: "z2m-lille/bouton-a-table/action", payload: "on", fire: "diner" },
-        { topic: "z2m-lille/bouton-a-table/action", payload: "off", fire: "diner" },
-        { topic: "z2m-lille/bouton-a-table/action", payload: "hold", fire: "down" },
-    ]
-}
-*/
+    /* possible action from mqtt2zigbee
+        ""       // notification
+        "press" 
+        "off" 
+        "release" 
+        "on"     // single hit from philips
+        "single" // single hit from sonoff
+        "hold"   // long press from philips
+        "long"   // long press from sonoff
+    */
 
-var mqttClient = mqtt.connect("mqtt://192.168.100.254",{clientId:"bose-control"});
-var atableTopic = "z2m-lille/bouton-a-table";
-//var testTopic   = "z2m-lille/bouton-test";
-var laboTopic   = "z2m-lille/bonton-labo";
-var topics = [ atableTopic, laboTopic ];
+if ("zigbee" in globalConfig) {
+    //load zigbee config
+    var mqttClient = mqtt.connect( globalConfig.zigbee.server,{clientId:"bose-control"});
 
-mqttClient._retry = 0;
-mqttClient.on("connect", function() {
     mqttClient._retry = 0;
-    mqttClient._lastMessage={};
+    mqttClient.on("connect", function() {
+        mqttClient._retry = 0;
+        mqttClient._lastMessage={};
 
-    topics.forEach( (topic) => { 
-	    mqttClient.subscribe( topic, function( err) {
-		if (err) {
-		    console.log("Mqtt Unable to subscribe on topic: "+err)
-		}
-		else {
-		    console.log("Mqtt subscribed to: "+topic)
-		}
-	    });
-	    mqttClient._lastMessage[ topic ]=0;
-    });
-
-});
-
-mqttClient.on("error",function(error){
-    //will retry each sec, log only once
-    if (mqttClient._retry == 0) {
-        console.log("failed to connect to mqtt: "+error);
-        mqttClient._retry = 1;
-    }
-});
-
-mqttClient.on("message", function( topic, payload, paquet) {
-
-    switch( topic) {
-        //FIXME: should check topic later
-	    case( atableTopic):
-	    case( laboTopic):
-
-            var action = undefined;
-            var message = undefined;
-            if (topic.endsWith('/action')) {
-                //old format
-                action = payload.toString();
+        for( var topic in globalConfig.zigbee.topics) { 
+            mqttClient.subscribe( topic, function( err) {
+            if (err) {
+                console.log("Mqtt Unable to subscribe on topic: "+err)
             }
             else {
-                message = JSON.parse( payload);
-                if( 'action' in message) action = message.action;
+                console.log("Mqtt subscribed to: "+topic)
             }
+            });
+            mqttClient._lastMessage[ topic ]=0;
+        }
+    });
 
-            console.log( "mqtt: topic:"+topic+" payload: "+payload);
+    mqttClient.on("error",function(error){
+        //will retry each sec, log only once
+        if (mqttClient._retry == 0) {
+            console.log("failed to connect to mqtt: "+error);
+            mqttClient._retry = 1;
+        }
+    });
 
-            var evname=null;
+    mqttClient.on("message", function( topic, payload, paquet) {
 
-            //FIXME: normalize action
-            switch( action) {
-
-                case( ""):       // notification
-                case( "press"): 
-                case( "off"): 
-                case( "release"): 
-                    //ignored
-                    break;
-
-                case( "on"):     // single hit from philips
-                case( "single"): // single hit from sonoff
-                    evname="diner"; 
-                    if (topic === laboTopic) evname="pizza"; 
-                    break;
-
-                case( "hold"): // long press from philips
-                case( "long"): // long press from sonoff
-                    evname="down"; 
-                    if (topic === laboTopic) evname=null; 
-                    break;
-            }
-
-            if (evname === null) {
-                console.log( "mqtt: topic:"+topic+" no event triggered");
-                return;
-            }
-
-            var now = Math.floor( Date.now() / 1000);
-            if ((now - mqttClient._lastMessage[topic]) > 6) {
-                //avoid multiple event
-
-                mqttClient._lastMessage[topic] = now;
-
-                console.log( "mqtt: topic:"+topic+" action:"+action+ ", calling event "+evname)
-                fire( evname, "ALL", function( err, answer) { 
-                    if (err) {
-                    console.log( "oops: "+err);
-                    }
-                    else {
-                    console.log("success: ", answer);
-                    }
-                });
-            }
-	    	break;
-
-	    default:
+        if (!topic in globalConfig.zigbee.topics) {
             console.log("mqtt: Warning, not supposed to receive a message from topic "+topic);
-            break;
-    }
-});
+            return;
+        }
+
+        var action = undefined;
+        if (topic.endsWith('/action')) {
+            //old format
+            action = payload.toString();
+        }
+        else {
+            var message = JSON.parse( payload);
+            if( 'action' in message) action = message.action;
+        }
+
+
+        if( action === undefined) {
+            console.log( "mqtt: topic:"+topic+" undefined action (payload: "+payload+")");
+            return;
+        }
+
+        var actionMapping = globalConfig.zigbee.topics[topic];
+
+        console.log( "mqtt: topic:"+topic+" payload: "+payload);
+
+        //check that we have a match
+        if (!action in actionMapping) {
+            console.log( "mqtt: topic:"+topic+" no map for action "+action);
+            return;
+        }
+
+        var evname=actionMapping[action];
+
+        if (evname === undefined) {
+            console.log( "mqtt: topic:"+topic+" no event mapped");
+            return;
+        }
+
+        var now = Math.floor( Date.now() / 1000);
+        if ((now - mqttClient._lastMessage[topic]) > 6) {
+            //avoid multiple event
+
+            mqttClient._lastMessage[topic] = now;
+
+            console.log( "mqtt: topic:"+topic+" action:"+action+ ", calling event "+evname)
+            fire( evname, "ALL", function( err, answer) { 
+                if (err) {
+                    console.log( "event "+evname+" oops: "+err);
+                }
+                else {
+                    console.log("event "+evname+" fired: ", answer);
+                }
+            });
+        }
+
+    });
+}
 
 
 
