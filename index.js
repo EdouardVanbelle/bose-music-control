@@ -8,6 +8,7 @@ const bonjour = require('bonjour')()
 const urllib  = require('urllib');
 const crypto  = require('crypto');
 const mqtt    = require('mqtt');
+const { createLogger, transports } = require("winston");
 
 const BoseSoundTouch = require('./lib/bosesoundtouch');
 const Denon          = require('./lib/denon-avr');
@@ -18,6 +19,11 @@ process.title="music-control";
 
 //const GCastClient                = require('castv2-client').Client;
 //const GCastDefaultMediaReceiver  = require('castv2-client').DefaultMediaReceiver;
+
+const logger = createLogger({
+    level: 'debug',
+    transports: [new transports.Console]
+});
 
 const app = express();
 
@@ -42,6 +48,7 @@ var defaultConfig = {
 
 var globalConfig = JSON.parse(fs.readFileSync('config.json', 'utf8'));
 var denon = new Denon( process.env.DENON_ADDRESS);
+var scheduler = {};
 
 app.get('/', function (req, res) {
    res.render('index', { title: "🎶 Music Control 🎶", boses: BoseSoundTouch.registered(), 'config': globalConfig });
@@ -643,7 +650,7 @@ function syncDenonOnBoseSalonRdcPowerChange( bose)
     {
         //stop any potential poweroff timer
         if (denonPowerOffTimer != null) {
-            console.log("cancelling the previous Denon poweroff");
+            console.log("canceling the previous Denon poweroff");
             clearTimeout( denonPowerOffTimer);
             denonPowerOffTimer = null;
         }
@@ -688,6 +695,11 @@ function syncDenonOnBoseSalonRdcPowerChange( bose)
         "single" // single hit from sonoff
         "hold"   // long press from philips
         "long"   // long press from sonoff
+
+        "brightness_move_up" // long press up from ikea
+        "brightness_move_down" // long press down from ikea
+        "brightness_stop" // on release up or down
+        
     */
 
 if ("zigbee" in globalConfig) {
@@ -701,13 +713,12 @@ if ("zigbee" in globalConfig) {
 
         for( var topic in globalConfig.zigbee.topics) { 
             mqttClient.subscribe( topic, function( err) {
-            if (err) {
-                console.log("Mqtt Unable to subscribe on topic: "+err)
-            }
-            else {
-                console.log("Mqtt subscribed to: "+topic)
-            }
+                if (err) {
+                    console.log("Mqtt Unable to subscribe on topic: "+err)
+                    return
+                }
             });
+            console.log(`Mqtt subscribed to: ${topic}`)
             mqttClient._lastMessage[ topic ]=0;
         }
     });
@@ -727,54 +738,113 @@ if ("zigbee" in globalConfig) {
             return;
         }
 
-        var action = undefined;
         if (topic.endsWith('/action')) {
             //old format
-            action = payload.toString();
-        }
-        else {
-            var message = JSON.parse( payload);
-            if( 'action' in message) action = message.action;
-        }
-
-
-        if( action === undefined) {
-            console.log( "mqtt: topic:"+topic+" undefined action (payload: "+payload+")");
             return;
         }
 
-        var actionMapping = globalConfig.zigbee.topics[topic];
+        var message = JSON.parse( payload);
+        var eventMapper = globalConfig.zigbee.topics[topic];
 
-        console.log( "mqtt: topic:"+topic+" payload: "+payload);
+        // DEBUG console.log( "mqtt: topic:"+topic+" payload: "+payload);
 
-        //check that we have a match
-        if (!action in actionMapping) {
-            console.log( "mqtt: topic:"+topic+" no map for action "+action);
-            return;
-        }
+        // scan all events
+        for (var eventName in eventMapper) {
 
-        var evname=actionMapping[action];
+            // keep only mapped events
+            if (!eventName in message) {
+                continue;
+            }
 
-        if (evname === undefined) {
-            console.log( "mqtt: topic:"+topic+" no event mapped");
-            return;
-        }
+            //force string
+            var eventValue = String( message[eventName]);
 
-        var now = Math.floor( Date.now() / 1000);
-        if ((now - mqttClient._lastMessage[topic]) > 6) {
-            //avoid multiple event
+            //check that we have a match
+            if (!(eventValue in eventMapper[eventName])) {
+                console.log( "mqtt: topic:"+topic+" ignoring event "+eventName+"='"+eventValue+"' (not binded)");
+                continue;
+            }
 
-            mqttClient._lastMessage[topic] = now;
+            var evname=eventMapper[eventName][eventValue];
 
-            console.log( "mqtt: topic:"+topic+" action:"+action+ ", calling event "+evname)
-            fire( evname, "ALL", function( err, answer) { 
+            if (typeof(evname) === 'string') {
+                //normalize
+                evname = { 
+                    "action":"notify",
+                    "name":evname,
+                }
+            }
+
+            if (!("id" in evname)) {
+                // by default use topic name
+                evname.id = topic
+            }
+
+            var now = Math.floor( Date.now() / 1000);
+            // FIXME should change evname.name
+
+            // FIXME: move anti doublon into "fire event"
+            if ((now - mqttClient._lastMessage[evname.id]) <= 6) {
+                //avoid multiple event
+                console.log("mqtt: event "+evname.id+" played too recently, ignoring it")
+                continue;
+            }
+
+            console.log( "mqtt: topic:"+topic+" event "+eventName+"="+eventValue+" is binded to action:"+evname.action+" name:"+evname.name);
+
+            mqttClient._lastMessage[evname.id] = now;
+            if ( evname.action === "cancel") {
+
+                if ( scheduler[evname.id]) {
+                    console.log( `scheduler: ${evname.id} is canceled`);
+                    clearTimeout( scheduler[evname.id]);
+                    scheduler[evname.id] = null;
+                }
+
+                continue
+            }
+
+            if ( evname.action !== "notify") {
+                console.log( "mqtt: topic:"+topic+" with "+eventName+ "="+eventValue+" action unkonwn: "+evname.action);
+                continue
+            }
+
+            if ("after" in evname) {
+
+                if (scheduler[evname.id]) {
+                    console.log( `scheduler: ${evname.id} already scheduled`);
+                    continue
+                }
+
+                console.log( `scheduler: ${evname.id} scheduled in ${evname.after}s`);
+                
+                scheduler[evname.id] = setTimeout( 
+                    function() {
+                        console.log( `scheduler: time to fire ${evname.id}`);
+                        scheduler[evname.id] = null; // clean up
+                    
+                        fire( evname.name, "ALL", function( err, answer) { 
+                            if (err) {
+                                console.log( "event "+evname.name+" oops: "+err);
+                                return
+                            }
+                            console.log("event "+evname.name+" fired: ", answer);
+                        });
+                    },
+                    evname.after * 1000 
+                );
+
+                continue
+            }
+
+            fire( evname.name, "ALL", function( err, answer) { 
                 if (err) {
-                    console.log( "event "+evname+" oops: "+err);
+                    console.log( "event "+evname.name+" oops: "+err);
+                    return
                 }
-                else {
-                    console.log("event "+evname+" fired: ", answer);
-                }
+                console.log("event "+evname.name+" fired: ", answer);
             });
+
         }
 
     });
