@@ -13,7 +13,8 @@ const { combine, timestamp, printf, colorize, align } = winston.format;
 
 const BoseSoundTouch = require('./lib/bosesoundtouch');
 const Denon          = require('./lib/denon-avr');
-const fs 	     = require('fs');
+const Scheduler      = require('./lib/scheduler');
+const fs 	         = require('fs');
 
 const process = require('process');
 process.title="music-control";
@@ -25,12 +26,13 @@ const masterLogger = winston.createLogger({
     level: process.env.LOG_LEVEL || 'info',
     //format: process.stdout.isTTY ? winston.format.cli() : winston.format.combine( winston.format.timestamp(), winston.format.json()),
     format: combine(
-        colorize({ message: true }),
-        timestamp({
-            format: 'YYYY-MM-DD hh:mm:ss.SSS A',
-        }),
+        //colorize({ message: true }),
+        //timestamp({
+        //    format: 'YYYY-MM-DD hh:mm:ss.SSS A',
+        //}),
         //align(),
-        printf((info) => `[${info.timestamp}] ${info.level.padEnd(5, " ")}: ${info.context?.padEnd( 30, " ")} ${info.message}`),
+        //printf((info) => `[${info.timestamp}] ${info.level.padEnd(5, " ")}: ${info.context?.padEnd( 30, " ")} ${info.message}`),
+        printf((info) => `${info.level.padEnd(5, " ")}: [${info.context?.padEnd( 32, " ")}] ${info.message}`),
     ),
     transports: [new winston.transports.Console]
 });
@@ -43,7 +45,7 @@ app.set('json spaces', ' ');
 var logger = masterLogger.child( { context: "core" });
 var httpLogger = masterLogger.child( { context: "HTTP" });
 var mqttLogger = masterLogger.child( { context: "mqtt" });
-var schedulerLogger = masterLogger.child( { context: "scheduler" });
+var scheduler = new Scheduler( masterLogger);
 
 app.use(function (req, res, next) {
     var _logger = req.url.startsWith("/api") ? httpLogger.info : httpLogger.debug;
@@ -64,7 +66,6 @@ var defaultConfig = {
 
 var globalConfig = JSON.parse(fs.readFileSync('config.json', 'utf8'));
 var denon = new Denon( process.env.DENON_ADDRESS, masterLogger);
-var scheduler = {};
 
 app.get('/', function (req, res) {
    res.render('index', { title: "🎶 Music Control 🎶", boses: BoseSoundTouch.registered(), 'config': globalConfig });
@@ -153,8 +154,6 @@ function notify( bose, evname, customconfig={}) {
 
 							});
 						}, 7000+Math.floor( 1000*Math.random()));
-
-
 					}
 				}
 			}
@@ -173,7 +172,7 @@ var watchdog = { };
 
 app.get("/ping", (req, res) => {
   var now=Math.floor( Date.now() / 1000);
-  logger.info("ping watchdog saved for "+req.ip+ " at "+now)
+  logger.debug("ping watchdog saved for "+req.ip+ " at "+now)
   var uid=null;
   if ('uid' in req.query)
 	uid = req.query.uid;
@@ -350,14 +349,14 @@ function fire( evname, target, handler) {
 	var i;
 	for( i=0; i<globalConfig.notify[evname].__webhook.length; i++) {
 		var url=globalConfig.notify[evname].__webhook[i];
-		logger.info( "calling webhook: "+url);
+        // url is truncated for security
+		logger.info( `calling webhook: ${url.slice(0,16)}...`);
 		urllib.request( url, (err, data, res) => {
 			if( err) {
                 handler( "oops: "+err, null);
 				return;
 			}
-
-			logger.info( data.toString('utf8'));
+			logger.debug( data.toString('utf8'));
 		} );
 	}
   }
@@ -662,11 +661,34 @@ app.get("/api/bose/:bose/ungroup/:slave", (req, res) => {
   });
 });
 
-var denonPowerOffTimer = null;
-function syncDenonOnBoseSalonRdcPowerChange( bose)
+function autoPowerOffOnBluetooth( bose)
+{
+    logger.info( `${bose} source changed to ${bose.source}`);
+    if (bose.source === 'BLUETOOTH') {
+        scheduler.schedule(
+            "bose-auto-shutdown",
+            function() {
+                bose.key( 'POWER', function( err, success) {
+                    if( err) {
+                        logger.warn( `${bose} poweroff error: ${err}`);
+                    }
+                    else {
+                        logger.info( `${bose} poweredoff`);
+                    }
+                } );
+            },
+            2 * 3600 * 1000 // in 2 hours
+        );
+    }
+    else {
+        scheduler.cancel("bose-auto-shutdown");
+    }
+}
+
+function syncDenonOnBosePowerChange( bose)
 {
 	
-    logger.info( bose+" powered: "+ bose.powerOn);
+    logger.info( `${bose} power changed to ${bose.powerOn}`);
 
     if( bose.source == "UPDATE") 
     {
@@ -676,32 +698,32 @@ function syncDenonOnBoseSalonRdcPowerChange( bose)
 
 	if( bose.powerOn)
     {
-        //stop any potential poweroff timer
-        if (denonPowerOffTimer != null) {
-            logger.info("canceling the previous Denon poweroff");
-            clearTimeout( denonPowerOffTimer);
-            denonPowerOffTimer = null;
-        }
+        // just in case
+        scheduler.cancel("denon-auto-shutdown");
+
         //poweron immediatly denon
         denon.call( ["Z2?"], function( err, answers) {
-            if (err) { return logger.info( err) }
+            if (err) { return logger.warn( err) }
             if( answers.indexOf( "Z2OFF") != -1) {
                 logger.info("Switching on Denon")
                 denon.call( [ "Z2ON", "Z2AUX1" ] ) ;
                 //denon_command( "Z250"); //set volume
             }
             else if( answers.indexOf( "Z2ON") != -1) {
-                logger.info("Denon is on")
+                logger.info("Denon is already powered on")
             }
         });
 	}
 	else
 	{
         //poweroff denon in 5min
-        logger.info("schedduling a Denon poweroff");
-        denonPowerOffTimer = setTimeout( function() { 
+
+        // clean up any potential auto shutdown
+        scheduler.cancel("bose-auto-shutdown");
+
+        scheduler.schedule( 'denon-auto-shutdown', function() { 
                 denon.call( [ "Z2?" ], function( err, answers) {
-                    if (err) { return logger.info( err) }
+                    if (err) { return logger.warn( err) }
                     if( answers.indexOf( "Z2ON") != -1 && answers.indexOf( "Z2AUX1") != -1) {
                         logger.info("Denon is on AUX1, switching it off")
                         denon.call( [ "Z2OFF" ] );
@@ -711,7 +733,6 @@ function syncDenonOnBoseSalonRdcPowerChange( bose)
             5*60*1000
         );
 	}
-
 }
 
     /* possible action from mqtt2zigbee
@@ -759,8 +780,10 @@ if ("zigbee" in globalConfig) {
 
     mqttClient.on("message", function( topic, payload, paquet) {
 
+        var _logger = mqttLogger.child( { context: `mqtt ${topic.slice(-30)}` });
+
         if (!topic in globalConfig.zigbee.topics) {
-            mqttLogger.warn(`Warning, not supposed to receive a message from topic ${topic}`);
+            _logger.warn(`Warning, not supposed to receive a message from topic ${topic}`);
             return;
         }
 
@@ -772,7 +795,7 @@ if ("zigbee" in globalConfig) {
         var message = JSON.parse( payload);
         var eventMapper = globalConfig.zigbee.topics[topic];
 
-        mqttLogger.debug( "topic:"+topic+" payload: "+payload);
+        _logger.info( "topic:"+topic+" payload: "+payload);
 
         // scan all events
         for (var eventName in eventMapper) {
@@ -782,88 +805,62 @@ if ("zigbee" in globalConfig) {
                 continue;
             }
 
-            //force string
+            // force string
             var eventValue = String( message[eventName]);
 
             //check that we have a match
             if (!(eventValue in eventMapper[eventName])) {
-                mqttLogger.info( "topic:"+topic+" ignoring event "+eventName+"='"+eventValue+"' (not binded)");
+                _logger.debug( `topic:${topic} ignoring event ${eventName}='${eventValue}' (not binded)`);
                 continue;
             }
 
-            var evname=eventMapper[eventName][eventValue];
+            var eventParam=eventMapper[eventName][eventValue];
 
-            if (typeof(evname) === 'string') {
-                //normalize
-                evname = { 
-                    "action":"notify",
-                    "name":evname,
+            // normalize
+            if (typeof(eventParam) === 'string') {
+                eventParam = { 
+                    action: "notify",
+                    name: eventParam,
                 }
             }
 
-            if (!("id" in evname)) {
+            if (!("id" in eventParam)) {
                 // by default use topic name
-                evname.id = topic
+                eventParam.id = topic
             }
 
-            // FIXME should change evname.name
+            _logger.info( `topic:${topic} event ${eventName}=${eventValue} is binded to action:${eventParam.action} name:${eventParam.name}`);
 
-            mqttLogger.info( "topic:"+topic+" event "+eventName+"="+eventValue+" is binded to action:"+evname.action+" name:"+evname.name);
+            switch (eventParam.action) {
 
-            if ( evname.action === "cancel") {
+                case "cancel":
+                    scheduler.cancel( eventParam.id);
+                    break;
 
-                if ( scheduler[evname.id]) {
-                    schedulerLogger.info( `${evname.id} is canceled`);
-                    clearTimeout( scheduler[evname.id]);
-                    scheduler[evname.id] = null;
-                }
-                else {
-                    schedulerLogger.info( `${evname.id} was not scheduled`);
-                }
-
-                continue
-            }
-
-            if ( evname.action !== "notify") {
-                mqttLogger.info( "topic:"+topic+" with "+eventName+ "="+eventValue+" action unkonwn: "+evname.action);
-                continue
-            }
-
-            if ("after" in evname) {
-
-                if (scheduler[evname.id]) {
-                    schedulerLogger.info( `${evname.id} already scheduled`);
-                    continue
-                }
-
-                schedulerLogger.info( `${evname.id} scheduled in ${evname.after}s`);
-                
-                scheduler[evname.id] = setTimeout( 
-                    function() {
-                        schedulerLogger.info( `${evname.id} firing event`);
-                        scheduler[evname.id] = null; // clean up
-                    
-                        fire( evname.name, "ALL", function( err, answer) { 
+                case "notify":
+                    // function to call
+                    var doFire = function() {
+                        fire( eventParam.name, "ALL", function( err, answer) { 
                             if (err) {
-                                logger.info( "event "+evname.name+" oops: "+err);
+                                logger.info( "event "+eventParam.name+" oops: "+err);
                                 return
                             }
-                            logger.info("event "+evname.name+" fired: ", answer);
+                            logger.info("event "+eventParam.name+" fired: ", answer);
                         });
-                    },
-                    evname.after * 1000 
-                );
+                    }
 
-                continue
+                    if ("after" in eventParam) {
+                        scheduler.schedule( eventParam.id, doFire, eventParam.after * 1000);
+                    }
+                    else {
+                        //call immediately function
+                        doFire();
+                    }
+
+                    break;
+                default:
+                    _logger.info( "topic:"+topic+" with "+eventName+ "="+eventValue+" action unkonwn: "+eventParam.action);
             }
-
-            fire( evname.name, "ALL", function( err, answer) { 
-                if (err) {
-                    logger.info( "event "+evname.name+" oops: "+err);
-                    return
-                }
-                logger.info("event "+evname.name+" fired: ", answer);
-            });
 
         }
 
@@ -945,7 +942,8 @@ soundtouch.on("up", function (service) {
   if ( bose.name === process.env.BOSE_WIRED_TO_DENON)
   {
      logger.info( "Bose wired to denon found ! It's: " + bose);
-     bose.on( 'powerChange', syncDenonOnBoseSalonRdcPowerChange);
+     bose.on( 'powerChange', syncDenonOnBosePowerChange);
+     bose.on( 'sourceChange', autoPowerOffOnBluetooth);
   }
 
 })
@@ -956,6 +954,8 @@ soundtouch.on("down", function (service) {
   if (! bose) return;
 
   logger.info( "Unregistering device: " + bose);
+
+  // FIXME: clean up some schedulers ?
   bose.unregister();
 
 })
@@ -964,6 +964,5 @@ app.listen(3000, '0.0.0.0', () => {
   logger.info('music control is running on port 3000 !');
 });
 
-//setTimeout( function() { logger.info("XXX simulate connection close"); bose_salon_rdc.end(); }, 30000);
 
 
