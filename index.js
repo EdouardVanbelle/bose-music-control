@@ -12,6 +12,7 @@ const winston = require("winston");
 const { combine, timestamp, printf, colorize, align } = winston.format;
 
 const BoseSoundTouch = require('./lib/bosesoundtouch');
+const Chromecast     = require('./lib/chromecast');
 const Denon          = require('./lib/denon-avr');
 const Scheduler      = require('./lib/scheduler');
 const fs 	         = require('fs');
@@ -19,8 +20,6 @@ const fs 	         = require('fs');
 const process = require('process');
 process.title="music-control";
 
-//const GCastClient                = require('castv2-client').Client;
-//const GCastDefaultMediaReceiver  = require('castv2-client').DefaultMediaReceiver;
 
 const masterLogger = winston.createLogger({
     level: process.env.LOG_LEVEL || 'info',
@@ -32,12 +31,13 @@ const masterLogger = winston.createLogger({
         //}),
         //align(),
         //printf((info) => `[${info.timestamp}] ${info.level.padEnd(5, " ")}: ${info.context?.padEnd( 30, " ")} ${info.message}`),
-        printf((info) => `${info.level.padEnd(5, " ")}: [${info.context?.padEnd( 32, " ")}] ${info.message}`),
+        printf((info) => `${info.level.padStart(5, " ")}: [${info.context?.padEnd( 32, " ")}] ${info.message}`),
     ),
     transports: [new winston.transports.Console]
 });
 
 const app = express();
+
 
 app.set('view engine', 'ejs')
 app.set('json spaces', ' ');
@@ -71,12 +71,6 @@ app.get('/', function (req, res) {
    res.render('index', { title: "🎶 Music Control 🎶", boses: BoseSoundTouch.registered(), 'config': globalConfig });
 })
 
-/*
-app.get('/', (req, res) => {
-  res.send('Hello World!');
-});
-*/
-
 app.get("/api/bose", (req, res) => {
   res.json( BoseSoundTouch.registered());
 });
@@ -92,7 +86,7 @@ app.get("/api/bose/:bose", (req, res) => {
   res.json( bose );
 });
 
-function notify( bose, evname, customconfig={}) {
+function notify( device, evname, customconfig={}) {
 	var config = Object.assign( defaultConfig);
 
     var _logger = logger.child({context: `notify ${evname}`});
@@ -103,65 +97,88 @@ function notify( bose, evname, customconfig={}) {
 	}
 	else {
 		if( !( evname in globalConfig.notify)) {
-			_logger.warn( bose+" unknown notify "+evname);
+			_logger.warn( `${device} unknwon notifcation ${evname}`);
 			return false;
 		}
 
 		if( '__default' in globalConfig.notify[evname]) {
 			config = Object.assign( config, globalConfig.notify[evname].__default);
 		}
-		if( bose.name in globalConfig.notify[evname]) {
-			config = Object.assign( config, globalConfig.notify[evname][bose.name]);
+
+        var deviceName = device.name;
+
+        if (device instanceof Chromecast) {
+            //namespace it
+            deviceName += "@cast";
+        }
+
+		if( deviceName in globalConfig.notify[evname]) {
+			config = Object.assign( config, globalConfig.notify[evname][deviceName]);
 		}
 
 		if( !config.enabled) {
-			_logger.info( `event ${evname} disabled for ${bose}`);
+			_logger.info( `notification ${evname} disabled for ${device}`);
 			return false;
 		}
 
 		var now = new Date().toTimeString().replace( /^(..:..).*/, "$1"); //keep only hh:mm in local timezone
 
 		if( (now < config.begin) || (now > config.end)) {
-			_logger.info( `event ${evname} is mute for ${bose} at this time ${now}`);
+			_logger.info( `notification ${evname} is mute for ${device} at this time ${now}`);
 			return false;
 		}
 	}
 
 
-	_logger.info( `firing event ${evname} for ${bose} with url ${config.url} and volume ${config.volume}`);
+	_logger.info( `firing notification ${evname} for ${device} with url ${config.url} and volume ${config.volume}`);
 	var answer = {};
 
-	bose.notify( process.env.NOTIF_KEY, config.url, config.volume, config.message, function( err, success, jsonError){
-		if( err) {
-			_logger.warn(bose+" notify error: "+err);
-	                if ((jsonError != null) && (jsonError.constructor === Object) &&  ('$' in jsonError) && ('name' in jsonError.$)) {
-			    _logger.warn(bose+" notify error code: "+jsonError.$.name);
+    if (device instanceof BoseSoundTouch) {
 
-				if ( jsonError.$.name == "HTTP_STATUS_CONFLICT") {
-					if( bose.zone.isSlave) {
-						_logger.info( `${bose} is a slave, do not redo notification`);
-					}
-					else {
-						setTimeout( function(){ 
-							_logger.info( bose+" retry notification...");
-							bose.notify( process.env.NOTIF_KEY, config.url, config.volume, config.message, function( err, success, jsonError){
-								if (err) {
-									_logger.warn(bose+" 2nd notify error: "+err);
-								}
-								else {
-									_logger.info(bose+" 2nd notify success");
-								}
+        device.notify( process.env.NOTIF_KEY, config.url, config.volume, config.message, function( err, success, jsonError){
+            if( err) {
+                _logger.warn(`${device} notifcation error: ${err}`);
+                    if ((jsonError != null) && (jsonError.constructor === Object) &&  ('$' in jsonError) && ('name' in jsonError.$)) {
+                    _logger.warn(`${device} notify error code: ${jsonError.$.name}`);
 
-							});
-						}, 7000+Math.floor( 1000*Math.random()));
-					}
-				}
-			}
-		}
-		else {
-			_logger.info( bose + " notification played");
-		}
-	} );
+                    if ( jsonError.$.name == "HTTP_STATUS_CONFLICT") {
+                        if( device.zone.isSlave) {
+                            _logger.info( `${device} is a slave, do not redo notification`);
+                        }
+                        else {
+                            setTimeout( function(){ 
+                                _logger.info( `${device} retry notification...`);
+                                device.notify( process.env.NOTIF_KEY, config.url, config.volume, config.message, function( err, success, jsonError){
+                                    if (err) {
+                                        _logger.warn(`${device} 2nd notify error: ${err}`);
+                                    }
+                                    else {
+                                        _logger.info(`${device} 2nd notify success`);
+                                    }
+
+                                });
+                            }, 7000+Math.floor( 1000*Math.random()));
+                        }
+                    }
+                }
+            }
+            else {
+                _logger.info( `${device} notification played`);
+            }
+        } );
+    }
+    else if (device instanceof Chromecast) {
+        device.notify( config.url, function( err, success) {
+            if( err) {
+                _logger.warn(`${device} notification error: ${err}`);
+                return;
+            }
+            _logger.warn(`${device} notification succes`);
+        } );
+    }
+    else {
+        _logger.warn(`unknown object to notify`);
+    }
 
 	return true;
 
@@ -337,7 +354,7 @@ function fire( evname, target, handler) {
 
   if ((now - _lastFired[evname]) <= 6) {
       //avoid multiple event
-      mqttLogger.info("event "+evname+" played too recently, ignoring it")
+      logger.info("event "+evname+" played too recently, ignoring it")
       return handler( null, {});
   }
   _lastFired[evname] = now;
@@ -361,8 +378,16 @@ function fire( evname, target, handler) {
 	}
   }
 
-
-  if ( target == "ALL") {
+  if ( target.endsWith( "@cast")) {
+        var realname = target.split("@").shift();
+        var chromecast = Chromecast.lookup( realname);
+        if (chromecast === null) {
+            handler( "not found", null);
+            return;
+        }
+        answers[ chromecast.name] = notify( chromecast, evname);;
+  }
+  else if ( target == "ALL") {
 	  var boses = BoseSoundTouch.registered();
 	  for ( var i=0; i < boses.length; i++) {
 		answers[ boses[i].name ] = notify( boses[i], evname);
@@ -664,7 +689,7 @@ app.get("/api/bose/:bose/ungroup/:slave", (req, res) => {
 function autoPowerOffOnBluetooth( bose)
 {
     logger.info( `${bose} source changed to ${bose.source}`);
-    if (bose.source === 'BLUETOOTH') {
+    if (bose.source === 'BLUETOOTH' && bose.connectionStatusInfo?.deviceName === "AT-TT") {
         scheduler.schedule(
             "bose-auto-shutdown",
             function() {
@@ -760,13 +785,15 @@ if ("zigbee" in globalConfig) {
         mqttClient._retry = 0;
 
         for( var topic in globalConfig.zigbee.topics) { 
+            
+            var _logger = mqttLogger.child( { context: `mqtt: ${topic.split("/").pop()}` });
             mqttClient.subscribe( topic, function( err) {
                 if (err) {
-                    mqttLogger.warn("Mqtt Unable to subscribe on topic: ", err)
+                    _logger.warn("Zigbee2mqtt Unable to subscribe on topic: ", err)
                     return
                 }
             });
-            mqttLogger.info(`Mqtt subscribed to: ${topic}`)
+            _logger.info(`Zigbee2mqtt subscribed to: ${topic}`)
         }
     });
 
@@ -780,7 +807,7 @@ if ("zigbee" in globalConfig) {
 
     mqttClient.on("message", function( topic, payload, paquet) {
 
-        var _logger = mqttLogger.child( { context: `mqtt ${topic.slice(-30)}` });
+        var _logger = mqttLogger.child( { context: `mqtt: ${topic.split("/").pop()}` });
 
         if (!topic in globalConfig.zigbee.topics) {
             _logger.warn(`Warning, not supposed to receive a message from topic ${topic}`);
@@ -795,7 +822,7 @@ if ("zigbee" in globalConfig) {
         var message = JSON.parse( payload);
         var eventMapper = globalConfig.zigbee.topics[topic];
 
-        _logger.info( "topic:"+topic+" payload: "+payload);
+        _logger.debug( `topic:${topic} payload: ${payload}`);
 
         // scan all events
         for (var eventName in eventMapper) {
@@ -810,7 +837,7 @@ if ("zigbee" in globalConfig) {
 
             //check that we have a match
             if (!(eventValue in eventMapper[eventName])) {
-                _logger.debug( `topic:${topic} ignoring event ${eventName}='${eventValue}' (not binded)`);
+                _logger.debug( `ignoring event ${eventName}='${eventValue}' from topic ${topic} (not binded)`);
                 continue;
             }
 
@@ -829,9 +856,83 @@ if ("zigbee" in globalConfig) {
                 eventParam.id = topic
             }
 
-            _logger.info( `topic:${topic} event ${eventName}=${eventValue} is binded to action:${eventParam.action} name:${eventParam.name}`);
+            _logger.info( `event ${eventName}=${eventValue} received on topic ${topic}, binded to action:${eventParam.action} name:${eventParam.name}`);
 
             switch (eventParam.action) {
+
+                case "cast":
+                case "cast/status":
+                    var chromecast = Chromecast.lookup( eventParam.target);
+                    if (chromecast === null) {
+                        _logger.info(`chromecast ${eventParam.target} is unknown`);
+                        break;
+                    }
+                    chromecast.client.getSessions( function( err, ses) {
+                        _logger.info( `chromecast ${eventParam.target} sessions ${JSON.stringify( ses, null, 2)}`);
+                    });
+                    break;
+
+                case "cast/play":
+                case "cast/pause":
+                    var chromecast = Chromecast.lookup( eventParam.target);
+                    if (chromecast === null) {
+                        _logger.info(`chromecast ${eventParam.target} is unknown`);
+                        break;
+                    }
+                    if (!chromecast.player) {
+                        _logger.info(`chromecast ${eventParam.target} has no active player`);
+                        break;
+                    }
+                    
+                    var handler = function( err, session) {
+                        if( err) {
+                            _logger.warn( `err ${err}`);
+                            return;
+                        }
+                        _logger.info( `chromecast ${eventParam.target} player state: ${session.playerState}`);
+                    };
+                    if (eventParam.action === "cast/play") {
+                        // request a getStatus to force session sync
+                        chromecast.player.getStatus( function( err, session) {
+                            if (err) {
+                                _logger.warn(`chromecast err: ${err}`);
+                                return;
+                            }
+                            if (!session) {
+                                _logger.warn(`chromecast no session`);
+                                return;
+                            }
+                            chromecast.player.play( handler);
+                        });
+                    }
+                    else {
+                        // request a getStatus to force session sync
+                        chromecast.player.getStatus( function( err, session) {
+                            if (err) {
+                                _logger.warn(`chromecast err: ${err}`);
+                                return;
+                            }
+                            if (!session) {
+                                _logger.warn(`chromecast no session`);
+                                return;
+                            }
+                            chromecast.player.pause( handler);
+                        });
+                    }
+                    break;
+
+                case "cast/notify":
+                    //chromecast.play();
+                    fire( eventParam.name, eventParam.target, function( err, answer) { 
+                        if (err) {
+                            logger.info( "event "+eventParam.name+" oops: "+err);
+                            return
+                        }
+                        logger.debug("event "+eventParam.name+" fired: ", answer);
+                    });
+
+                    break;
+ 
 
                 case "cancel":
                     scheduler.cancel( eventParam.id);
@@ -845,7 +946,7 @@ if ("zigbee" in globalConfig) {
                                 logger.info( "event "+eventParam.name+" oops: "+err);
                                 return
                             }
-                            logger.info("event "+eventParam.name+" fired: ", answer);
+                            logger.debug("event "+eventParam.name+" fired: ", answer);
                         });
                     }
 
@@ -859,7 +960,7 @@ if ("zigbee" in globalConfig) {
 
                     break;
                 default:
-                    _logger.info( "topic:"+topic+" with "+eventName+ "="+eventValue+" action unkonwn: "+eventParam.action);
+                    _logger.warn( `event ${eventName}=${eventValue} from ${topic} is mapped to an unknown action ${eventParam.action}, please check your configuration`);
             }
 
         }
@@ -869,54 +970,32 @@ if ("zigbee" in globalConfig) {
 
 
 
-// browse for all http services
-var soundtouch = bonjour.find({ type: 'soundtouch' });
 
-/*
 var chromecast = bonjour.find({ type: 'googlecast' });
 
 chromecast.on("up", function( service) {
 	var ip = service.addresses[0];
 
-	logger.info("googlecast:");
-	//logger.info( service);
-	logger.info( service.txt.md);
-	logger.info( service.txt.fn);
-	logger.info( ip);
+    var friendlyName = service.txt.fn;
+    var model = service.txt.md;
+    var id = service.txt.id;
 
-	if( service.txt.fn != "Mini") {
-		return;
-	}
+	//logger.info( JSON.stringify( service.txt, null, 2));
 
-		return;
-	logger.info( "request for "+service.txt.fn);
+	var chromecast = new Chromecast( friendlyName, ip, id, model, masterLogger);
+    var previous = Chromecast.lookup( chromecast.id);
+    if( previous) {
+  	    logger.info( "found previous instance with same id, clean it up");
+  	    previous.unregister();  
+    }
 
-	var client = new GCastClient();
-	client.connect( ip, function() {
-	       client.launch(GCastDefaultMediaReceiver, function(err, player) {
-		        var media = {
-				// Here you can plug an URL to any mp4, webm, mp3 or jpg file with the proper contentType.
-				contentId: 'http://192.168.2.2:3000/sound/doorbell-suona-alla-porta.mp3',
-				contentType: 'audio/mp3',
-				streamType: 'BUFFERED', // or LIVE
-		        };
-			
-			player.on('status', function(status) {
-				logger.info('status broadcast playerState=%s', status.playerState);
-			});
-
-			player.load(media, { autoplay: true }, function(err, status) {
-				logger.info('media loaded playerState=%s', status);
-			});
-		} );
-	});
+    chromecast.register();
+    chromecast.connect();
 });
-*/
 
+// browse for all http services
+var soundtouch = bonjour.find({ type: 'soundtouch' });
 soundtouch.on("up", function (service) {
-
-
-  // format:{"Bose-Salon-Rdc":{"addresses":["192.168.2.246"],"txt":{"description":"SoundTouch","mac":"04A316E14903","manufacturer":"Bose Corporation","model":"SoundTouch"},"name":"Bose-Salon-Rdc","fqdn":"Bose-Salon-Rdc._soundtouch._tcp.local","host":"binky-1436213703.local","referer":{"address":"192.168.2.246","family":"IPv4","port":5353,"size":215},"port":8090,"type":"soundtouch","protocol":"tcp","subtypes":[]}
 
   var ip = service.addresses[0]
 
@@ -941,7 +1020,7 @@ soundtouch.on("up", function (service) {
 
   if ( bose.name === process.env.BOSE_WIRED_TO_DENON)
   {
-     logger.info( "Bose wired to denon found ! It's: " + bose);
+     logger.info( `Device ${bose} is wired to denon amplificator`);
      bose.on( 'powerChange', syncDenonOnBosePowerChange);
      bose.on( 'sourceChange', autoPowerOffOnBluetooth);
   }
