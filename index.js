@@ -378,7 +378,23 @@ function fire( evname, target, handler) {
 	}
   }
 
-  if ( target.endsWith( "@cast")) {
+  if ( target == "ALL") {
+	  var boses = BoseSoundTouch.registered();
+	  for ( var device of boses) {
+        logger.info( `>>>> ${device}`);
+		answers[ device ] = notify( device, evname);
+	  }
+
+	  var chromecasts = Chromecast.registered();
+	  for ( var device of chromecasts) {
+        logger.info( `>>>> ${device}`);
+		answers[ device ] = notify( device, evname);
+	  } 
+
+	  handler( null, answers);
+	  return;
+  }
+  else if ( target.endsWith( "@cast")) {
         var realname = target.split("@").shift();
         var chromecast = Chromecast.lookup( realname);
         if (chromecast === null) {
@@ -386,14 +402,6 @@ function fire( evname, target, handler) {
             return;
         }
         answers[ chromecast.name] = notify( chromecast, evname);;
-  }
-  else if ( target == "ALL") {
-	  var boses = BoseSoundTouch.registered();
-	  for ( var i=0; i < boses.length; i++) {
-		answers[ boses[i].name ] = notify( boses[i], evname);
-	  }
-	  handler( null, answers);
-	  return;
   }
   else {
 	  var bose = BoseSoundTouch.lookup( target);
