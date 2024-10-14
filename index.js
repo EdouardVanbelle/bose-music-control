@@ -87,7 +87,8 @@ app.get("/api/bose/:bose", (req, res) => {
 });
 
 function notify( device, evname, customconfig={}) {
-	var config = Object.assign( defaultConfig);
+    // create independant object (will not alter defaultConfig)
+	var config = Object.assign( {}, defaultConfig);
 
     var _logger = logger.child({context: `notify ${evname}`});
 
@@ -381,15 +382,16 @@ function fire( evname, target, handler) {
   if ( target == "ALL") {
 	  var boses = BoseSoundTouch.registered();
 	  for ( var device of boses) {
-        logger.info( `>>>> ${device}`);
 		answers[ device ] = notify( device, evname);
 	  }
 
+      /* currently too agressive (invoke also TV & other devices...)
 	  var chromecasts = Chromecast.registered();
 	  for ( var device of chromecasts) {
         logger.info( `>>>> ${device}`);
 		answers[ device ] = notify( device, evname);
-	  } 
+	  }
+      */ 
 
 	  handler( null, answers);
 	  return;
@@ -997,8 +999,13 @@ chromecast.on("up", function( service) {
   	    previous.unregister();  
     }
 
+    if (!chromecast.isNest() ) {
+        logger.info(`ignore ${chromecast} device ${chromecast.model} as it is not a Nest device`);
+        return;
+    }
+
     chromecast.register();
-    chromecast.connect();
+    chromecast.connect({nestOnly: true});
 });
 
 // browse for all http services
