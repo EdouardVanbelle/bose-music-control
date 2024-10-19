@@ -15,7 +15,7 @@ const BoseSoundTouch = require('./lib/bosesoundtouch');
 const Chromecast     = require('./lib/chromecast');
 const Denon          = require('./lib/denon-avr');
 const Scheduler      = require('./lib/scheduler');
-const fs            = require('fs');
+const fs             = require('fs');
 const os             = require("os");
 
 const process = require('process');
@@ -39,6 +39,9 @@ const masterLogger = winston.createLogger({
 
 const app = express();
 
+function isArray(a) {
+    return (!!a) && (a.constructor === Array);
+};
 
 app.set('view engine', 'ejs')
 app.set('json spaces', ' ');
@@ -67,6 +70,7 @@ var defaultConfig = {
 
 var globalConfig = JSON.parse(fs.readFileSync('config.json', 'utf8'));
 var denon = null;
+
 
 if (process.env.DENON_ADDRESS) {
     denon = new Denon( process.env.DENON_ADDRESS, masterLogger);
@@ -385,18 +389,28 @@ function fire( evname, target, handler) {
   }
 
   if ( target == "ALL") {
-	  var boses = BoseSoundTouch.registered();
-	  for ( var device of boses) {
-		answers[ device ] = notify( device, evname);
-	  }
 
-      /* currently too agressive (invoke also TV & other devices...)
-	  var chromecasts = Chromecast.registered();
-	  for ( var device of chromecasts) {
-        logger.info( `>>>> ${device}`);
-		answers[ device ] = notify( device, evname);
-	  }
-      */ 
+        for ( var broadcast of globalConfig.broadcast) {
+
+            switch( broadcast) {
+                case "*@bose":
+                    var boses = BoseSoundTouch.registered();
+                    for ( var device of boses) {
+                        answers[ device ] = notify( device, evname);
+                    }
+                    break;
+
+                case "*@cast":
+                    var chromecasts = Chromecast.registered();
+                    for ( var device of chromecasts) {
+                        logger.info( `>>>> ${device}`);
+                        //answers[ device ] = notify( device, evname);
+                    }
+                    break;
+
+            }
+        }
+
 
 	  handler( null, answers);
 	  return;
