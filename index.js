@@ -403,8 +403,7 @@ function fire( evname, target, handler) {
                 case "*@cast":
                     var chromecasts = Chromecast.registered();
                     for ( var device of chromecasts) {
-                        logger.info( `>>>> ${device}`);
-                        //answers[ device ] = notify( device, evname);
+                        answers[ device ] = notify( device, evname);
                     }
                     break;
 
