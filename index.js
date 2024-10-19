@@ -15,7 +15,8 @@ const BoseSoundTouch = require('./lib/bosesoundtouch');
 const Chromecast     = require('./lib/chromecast');
 const Denon          = require('./lib/denon-avr');
 const Scheduler      = require('./lib/scheduler');
-const fs 	         = require('fs');
+const fs            = require('fs');
+const os             = require("os");
 
 const process = require('process');
 process.title="music-control";
@@ -795,7 +796,7 @@ function syncDenonOnBosePowerChange( bose)
 
 if ("zigbee" in globalConfig) {
     //load zigbee config
-    var mqttClient = mqtt.connect( globalConfig.zigbee.server,{clientId:"bose-control"});
+    var mqttClient = mqtt.connect( globalConfig.zigbee.server,{clientId:`bose-control.${os.hostname()}`});
 
     mqttClient._retry = 0;
     mqttClient.on("connect", function() {
