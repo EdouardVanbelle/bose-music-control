@@ -65,7 +65,11 @@ var defaultConfig = {
 };
 
 var globalConfig = JSON.parse(fs.readFileSync('config.json', 'utf8'));
-var denon = new Denon( process.env.DENON_ADDRESS, masterLogger);
+var denon = null;
+
+if (process.env.DENON_ADDRESS) {
+    denon = new Denon( process.env.DENON_ADDRESS, masterLogger);
+}
 
 app.get('/', function (req, res) {
    res.render('index', { title: "🎶 Music Control 🎶", boses: BoseSoundTouch.registered(), 'config': globalConfig });
@@ -556,95 +560,98 @@ app.get("/api/bose/:bose/key/:key", (req, res) => {
   } );
 });
 
-app.get("/api/denon/main/source", (req, res) => {
-	denon.call(["SI?"], function( err, answers) {
-		if( err) { res.status(400).json({ message: err }); return }
-		res.json( answers)
-	})
-});
+if (denon) {
+
+    app.get("/api/denon/main/source", (req, res) => {
+        denon.call(["SI?"], function( err, answers) {
+            if( err) { res.status(400).json({ message: err }); return }
+            res.json( answers)
+        })
+    });
 
 
-app.get("/api/denon/main/volume", (req, res) => {
-	denon.call(["MV?"], function( err, answers) {
-		if( err) { res.status(400).json({ message: err }); return }
-		res.json( answers)
-	})
-});
+    app.get("/api/denon/main/volume", (req, res) => {
+        denon.call(["MV?"], function( err, answers) {
+            if( err) { res.status(400).json({ message: err }); return }
+            res.json( answers)
+        })
+    });
 
-app.get("/api/denon/main/volume/:volume", (req, res) => {
-	var vol;
-	if( req.params.volume == "up" || req.params.volume == "down")
-	{
-		vol = req.params.volume.toUpperCase();
-	}
-	else 
-	{
-		vol = parseInt( req.params.volume);
-		if ( isNaN( vol) || (vol < 0) || (vol > 100)) {
-			res.status(400).json({ message: "wrong value" })
-			return
-		}
-	}
-	denon.call(["MV"+vol], function( err, answers) {
-		if( err) { res.status(400).json({ message: err }); return }
-		res.json( answers)
-	})
-});
+    app.get("/api/denon/main/volume/:volume", (req, res) => {
+        var vol;
+        if( req.params.volume == "up" || req.params.volume == "down")
+        {
+            vol = req.params.volume.toUpperCase();
+        }
+        else 
+        {
+            vol = parseInt( req.params.volume);
+            if ( isNaN( vol) || (vol < 0) || (vol > 100)) {
+                res.status(400).json({ message: "wrong value" })
+                return
+            }
+        }
+        denon.call(["MV"+vol], function( err, answers) {
+            if( err) { res.status(400).json({ message: err }); return }
+            res.json( answers)
+        })
+    });
 
-app.get("/api/denon/main/central", (req, res) => {
-	denon.call(["CVC ?"], function( err, answers) {
-		if( err) { res.status(400).json({ message: err }); return }
-		res.json( answers)
-	})
-});
+    app.get("/api/denon/main/central", (req, res) => {
+        denon.call(["CVC ?"], function( err, answers) {
+            if( err) { res.status(400).json({ message: err }); return }
+            res.json( answers)
+        })
+    });
 
-app.get("/api/denon/main/central/:volume", (req, res) => {
-	var vol;
-	if( req.params.volume == "up" || req.params.volume == "down")
-	{
-		vol = req.params.volume.toUpperCase();
-	}
-	else 
-	{
-		vol = parseInt( req.params.volume);
-		if ( isNaN( vol) || (vol < 0) || (vol > 100)) {
-			res.status(400).json({ message: "wrong value" })
-			return
-		}
-	}
-	denon.call(["CVC "+vol], function( err, answers) {
-		if( err) { res.status(400).json({ message: err }); return }
-		res.json( answers)
-	})
-});
+    app.get("/api/denon/main/central/:volume", (req, res) => {
+        var vol;
+        if( req.params.volume == "up" || req.params.volume == "down")
+        {
+            vol = req.params.volume.toUpperCase();
+        }
+        else 
+        {
+            vol = parseInt( req.params.volume);
+            if ( isNaN( vol) || (vol < 0) || (vol > 100)) {
+                res.status(400).json({ message: "wrong value" })
+                return
+            }
+        }
+        denon.call(["CVC "+vol], function( err, answers) {
+            if( err) { res.status(400).json({ message: err }); return }
+            res.json( answers)
+        })
+    });
 
 
-app.get("/api/denon/z2/volume", (req, res) => {
-	denon.call(["Z2?"], function( err, answers) {
-		if( err) { res.status(400).json({ message: err }); return }
-		res.json( answers)
-	})
-});
+    app.get("/api/denon/z2/volume", (req, res) => {
+        denon.call(["Z2?"], function( err, answers) {
+            if( err) { res.status(400).json({ message: err }); return }
+            res.json( answers)
+        })
+    });
 
-app.get("/api/denon/z2/volume/:volume", (req, res) => {
-	var vol;
-	if( req.params.volume == "up" || req.params.volume == "down")
-	{
-		vol = req.params.volume.toUpperCase();
-	}
-	else 
-	{
-		vol = parseInt( req.params.volume);
-		if ( isNaN( vol) || (vol < 0) || (vol > 100)) {
-			res.status(400).json({ message: "wrong value" })
-			return
-		}
-	}
-	denon.call(["Z2"+vol], function( err, answers) {
-		if( err) { res.status(400).json({ message: err }); return }
-		res.json( answers)
-	})
-});
+    app.get("/api/denon/z2/volume/:volume", (req, res) => {
+        var vol;
+        if( req.params.volume == "up" || req.params.volume == "down")
+        {
+            vol = req.params.volume.toUpperCase();
+        }
+        else 
+        {
+            vol = parseInt( req.params.volume);
+            if ( isNaN( vol) || (vol < 0) || (vol > 100)) {
+                res.status(400).json({ message: "wrong value" })
+                return
+            }
+        }
+        denon.call(["Z2"+vol], function( err, answers) {
+            if( err) { res.status(400).json({ message: err }); return }
+            res.json( answers)
+        })
+    });
+}
 
 app.get("/api/bose/:bose/group/:slave", (req, res) => {
 
