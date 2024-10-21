@@ -43,6 +43,12 @@ function isArray(a) {
     return (!!a) && (a.constructor === Array);
 };
 
+const namespaceMapping = {
+    bose: BoseSoundTouch,
+    cast: Chromecast
+};
+
+
 app.set('view engine', 'ejs')
 app.set('json spaces', ' ');
 
@@ -101,13 +107,16 @@ function notify( device, evname, customconfig={}) {
 
     var _logger = logger.child({context: `notify ${evname}`});
 
+    var fullname = device.fullname();
+    var deviceName = device.name;
+
 	if (evname == "__custom") {
 		//custom notification
 		config=customconfig;
 	}
 	else {
 		if( !( evname in globalConfig.notify)) {
-			_logger.warn( `${device} unknwon notifcation ${evname}`);
+			_logger.warn( `${fullname} unknwon notifcation ${evname}`);
 			return false;
 		}
 
@@ -115,41 +124,38 @@ function notify( device, evname, customconfig={}) {
 			config = Object.assign( config, globalConfig.notify[evname].__default);
 		}
 
-        var deviceName = device.name;
 
-        if (device instanceof Chromecast) {
-            //namespace it
-            deviceName += "@cast";
+        // try via full namespace first
+        if ( fullname in globalConfig.notify[evname]) {
+			config = Object.assign( config, globalConfig.notify[evname][fullname]);
         }
-
-		if( deviceName in globalConfig.notify[evname]) {
+		else if( deviceName in globalConfig.notify[evname]) {
 			config = Object.assign( config, globalConfig.notify[evname][deviceName]);
 		}
 
 		if( !config.enabled) {
-			_logger.info( `notification ${evname} disabled for ${device}`);
+			_logger.info( `notification ${evname} disabled for ${fullname}`);
 			return false;
 		}
 
 		var now = new Date().toTimeString().replace( /^(..:..).*/, "$1"); //keep only hh:mm in local timezone
 
 		if( (now < config.begin) || (now > config.end)) {
-			_logger.info( `notification ${evname} is mute for ${device} at this time ${now}`);
+			_logger.info( `notification ${evname} is mute for ${fullname} at this time ${now}`);
 			return false;
 		}
 	}
 
-
-	_logger.info( `firing notification ${evname} for ${device} with url ${config.url} and volume ${config.volume}`);
+	_logger.info( `firing notification ${evname} for ${fullname} with url ${config.url} and volume ${config.volume}`);
 	var answer = {};
 
     if (device instanceof BoseSoundTouch) {
 
         device.notify( process.env.NOTIF_KEY, config.url, config.volume, config.message, function( err, success, jsonError){
             if( err) {
-                _logger.warn(`${device} notifcation error: ${err}`);
+                _logger.warn(`${fullname} notifcation error: ${err}`);
                     if ((jsonError != null) && (jsonError.constructor === Object) &&  ('$' in jsonError) && ('name' in jsonError.$)) {
-                    _logger.warn(`${device} notify error code: ${jsonError.$.name}`);
+                    _logger.warn(`${fullname} notify error code: ${jsonError.$.name}`);
 
                     if ( jsonError.$.name == "HTTP_STATUS_CONFLICT") {
                         if( device.zone.isSlave) {
@@ -157,13 +163,13 @@ function notify( device, evname, customconfig={}) {
                         }
                         else {
                             setTimeout( function(){ 
-                                _logger.info( `${device} retry notification...`);
+                                _logger.info( `${fullname} retry notification...`);
                                 device.notify( process.env.NOTIF_KEY, config.url, config.volume, config.message, function( err, success, jsonError){
                                     if (err) {
-                                        _logger.warn(`${device} 2nd notify error: ${err}`);
+                                        _logger.warn(`${fullname} 2nd notify error: ${err}`);
                                     }
                                     else {
-                                        _logger.info(`${device} 2nd notify success`);
+                                        _logger.info(`${fullname} 2nd notify success`);
                                     }
 
                                 });
@@ -173,21 +179,22 @@ function notify( device, evname, customconfig={}) {
                 }
             }
             else {
-                _logger.info( `${device} notification played`);
+                _logger.info( `${fullname} notification played`);
             }
         } );
     }
     else if (device instanceof Chromecast) {
         device.notify( config.url, function( err, success) {
             if( err) {
-                _logger.warn(`${device} notification error: ${err}`);
+                _logger.warn(`${fullname} notification error: ${err}`);
                 return;
             }
-            _logger.warn(`${device} notification succes`);
+            _logger.warn(`${fullname} notification succes`);
         } );
     }
     else {
         _logger.warn(`unknown object to notify`);
+        return false;
     }
 
 	return true;
@@ -210,7 +217,7 @@ app.get("/ping", (req, res) => {
 
 /* dump watchdog */
 app.get("/api/watchdog", (req, res) => {
-  //FIXME: should check age
+  // FIXME: should check age
   var now=Math.floor( Date.now() / 1000);
   var result={};
   Object.keys( watchdog).forEach( (key) => {
@@ -318,8 +325,7 @@ app.get("/api/bose/:bose/custom-notify/:lang/:message", (req, res) => {
 						  }
 
 						  answers[ bose.name ] = notify( bose, '__custom', { url: url, message: message, volume: 50 });
-				        }
-
+				    }
 				}
 			} 
 		);
@@ -390,29 +396,40 @@ function fire( evname, target, handler) {
 
   if ( target == "ALL") {
 
+        var test = null;
+
+        logger.info(`broadcasting ${evname} to ${globalConfig.broadcast.join(", ")}`);
+
         for ( var broadcast of globalConfig.broadcast) {
 
-            switch( broadcast) {
-                case "*@bose":
-                    var boses = BoseSoundTouch.registered();
-                    for ( var device of boses) {
-                        answers[ device ] = notify( device, evname);
-                    }
-                    break;
+            var [name, namespace] = broadcast.split("@");
 
-                case "*@cast":
-                    var chromecasts = Chromecast.registered();
-                    for ( var device of chromecasts) {
-                        answers[ device ] = notify( device, evname);
-                    }
-                    break;
+            if (!(namespace in namespaceMapping)) {
+                logger.info(`broadcast ${broadcast} namespace unrecognized`);
+                continue;
+            }
 
+            // is either BoseSoundTouch or Chromecast
+            var classname = namespaceMapping[namespace];
+
+            if (name === "*") {
+                var devices = classname.registered();
+                for ( var device of devices) {
+                    answers[ device ] = notify( device, evname);
+                }
+            }
+            else {
+                var device = classname.lookup( name);
+                if (device === null) {
+                    logger.info(`device ${name} namespaced ${namespace} not found`);
+                    continue;
+                }
+                answers[ device ] = notify( device, evname);
             }
         }
 
-
-	  handler( null, answers);
-	  return;
+        handler( null, answers);
+        return;
   }
   else if ( target.endsWith( "@cast")) {
         var realname = target.split("@").shift();
@@ -952,19 +969,6 @@ if ("zigbee" in globalConfig) {
                     }
                     break;
 
-                case "cast/notify":
-                    //chromecast.play();
-                    fire( eventParam.name, eventParam.target, function( err, answer) { 
-                        if (err) {
-                            logger.info( "event "+eventParam.name+" oops: "+err);
-                            return
-                        }
-                        logger.debug("event "+eventParam.name+" fired: ", answer);
-                    });
-
-                    break;
- 
-
                 case "cancel":
                     scheduler.cancel( eventParam.id);
                     break;
@@ -972,7 +976,8 @@ if ("zigbee" in globalConfig) {
                 case "notify":
                     // function to call
                     var doFire = function() {
-                        fire( eventParam.name, "ALL", function( err, answer) { 
+                        var target = eventParam.target || "ALL";
+                        fire( eventParam.name, target, function( err, answer) { 
                             if (err) {
                                 logger.info( "event "+eventParam.name+" oops: "+err);
                                 return
